@@ -1,0 +1,19 @@
+int Led=13;//Define LED interface
+int buttonpin=3; //Digital temperature sensor interface
+int val;/Definition of digital variable val
+void setup()
+{
+pinMode(Led,OUTPUT);//Define LED as output interfacepinMode(buttonpin,INPUT);//Define digital temperature sensor as output interface
+}
+void loop()
+{
+val=digitalRead(buttonpin);//Read the value of the value of the digital interface 3 to val
+if(val==HIGH)//When the digital temperature sensor detects the signal, the LED flashes
+{
+digitalWrite(Led,HIGH);
+}
+else
+{
+digitalWrite(Led,LOW);
+}
+}

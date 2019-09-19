@@ -1,0 +1,14 @@
+#include <IRremote.h>               
+
+IRsend irsend;                         
+
+void setup()
+{
+  pinMode(3, OUTPUT);   
+
+void loop()
+{
+  Serial.print("SendIR: ");
+  irsend.sendNEC(0x3EC3FC1B, 32);   
+  delay(3000);            
+}

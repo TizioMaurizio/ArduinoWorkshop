@@ -1,0 +1,11 @@
+int speakerPin = 8;//Control horn pin
+int value = 0; 
+void setup() { 
+  pinMode(speakerPin, OUTPUT); 
+} 
+void loop() {
+  digitalWrite(speakerPin, HIGH); 
+  delay(0.5);
+  digitalWrite(speakerPin, LOW); 
+  delay(0.5);
+} 

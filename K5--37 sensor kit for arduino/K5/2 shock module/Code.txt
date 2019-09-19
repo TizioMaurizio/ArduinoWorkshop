@@ -1,0 +1,21 @@
+int Led=13;//Define LED interface
+int Shock=3;//Define vibration sensor interface
+int val;//Define the numerical variable val
+void setup()
+{
+pinMode(Led,OUTPUT);//Define LED as output interface
+pinMode(Shock,INPUT);//The vibration sensor is defined as the input interface
+}
+void loop()
+{
+val=digitalRead(Shock);//Assign the value read from the numeric interface 3 to val
+if(val==HIGH)//When the vibration sensor detects a signal, the LED flashes
+{
+digitalWrite(Led,HIGH);
+}
+else
+{
+digitalWrite(Led,LOW);
+}
+}
+
