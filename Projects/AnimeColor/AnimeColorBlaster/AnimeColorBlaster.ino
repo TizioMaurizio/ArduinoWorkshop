@@ -5,32 +5,38 @@
  */
 
 #include <IRremote.h> //adds the library code to the sketch
-long color=255;      
+char color=255, prev_color=255;      
 IRsend irsend;                         
 bool fire = false;
+bool rdy = false;
+const long interval = 100;
+unsigned long currentMillis = 0, previousMillis = 0; 
 
 void setup()
 {
   Serial.begin(9600);
   pinMode(13, OUTPUT); 
 }
-void loop(){
+
+void loop()
+{
+  currentMillis = millis();
   if(Serial.available()) {
-    color = Serial.parseInt();
-    Serial.read();
+    color = Serial.read();
     //Serial.print("SendIR: ");
-    Serial.print(color);
-    fire = true;
-  }   
+    //Serial.print(color);
+    fire = (color != prev_color) && (currentMillis - previousMillis >= interval);
+  }
   if(fire){
-   switch(color){
+    previousMillis = currentMillis;
+    switch(color){
       case 90:  // OFF (enable with code 8)
         irsend.sendNEC(0xFF609F, 32);
         break;
       case 91:  // ON
         irsend.sendNEC(0xFFE01F, 32);
         break;
-      case 0:  // RED
+      case '0':  // RED
         irsend.sendNEC(0xFF10EF, 32);
         //Serial.print("Red");
         break;
@@ -43,11 +49,11 @@ void loop(){
       case 95:  // R4
         irsend.sendNEC(0xFF28D7, 32);
         break;
-      case 3:  // YELLOW
+      case '3':  // YELLOW
         irsend.sendNEC(0xFF18E7, 32);
         //Serial.print("Yellow");
         break;
-      case 2:  // GREEN
+      case '2':  // GREEN
         irsend.sendNEC(0xFF906F, 32);
         //Serial.print("Green");
         break;
@@ -60,11 +66,11 @@ void loop(){
       case 10:  // G3
         irsend.sendNEC(0xFFA857, 32);
         break;
-      case 4:  // CYAN
+      case '4':  // CYAN
         irsend.sendNEC(0xFF9867, 32);
         //Serial.print("Cyan");
         break;
-      case 1:  // BLUE
+      case '1':  // BLUE
         irsend.sendNEC(0xFF50AF, 32);
         //Serial.print("Blue");
         break;
@@ -77,20 +83,19 @@ void loop(){
       case 15:  // B3
         irsend.sendNEC(0xFF6897, 32);
         break;
-      case 5:  // PINK
+      case '5':  // PINK
         irsend.sendNEC(0xFF58A7, 32);
         //Serial.print("Pink");
         break;
-      case 6:  // WHITE
+      case '6':  // WHITE
         irsend.sendNEC(0xFFC03F, 32);
         //Serial.print("White");
         break;
       default:
+        irsend.sendNEC(0xFFB04F, 32);
         break;
     }
-    fire = false;
-    delay(100);
   }
-  else
-    delay(100);
+  prev_color = color;
+  fire = false;
 }
