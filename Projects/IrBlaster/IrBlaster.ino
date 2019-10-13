@@ -10,7 +10,7 @@ IRsend irsend;
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(3, OUTPUT); 
 }
 void loop(){
@@ -22,58 +22,58 @@ void loop(){
   }   
   
   switch(color){
-    case 0:  // 
+    case 0:  // OFF
       irsend.sendNEC(0xFF609F, 32);
       break;
-    case 1:  // 
+    case 1:  // ON
       irsend.sendNEC(0xFFE01F, 32);
       break;
-    case 2:  // 
+    case 2:  // RED
       irsend.sendNEC(0xFF10EF, 32);
       break;
-    case 3:  // 
+    case 3:  // R1
       irsend.sendNEC(0xFF30CF, 32);
       break;
-    case 4:  // 
+    case 4:  // R2
       irsend.sendNEC(0xFF08F7, 32);
       break;
-    case 5:  // 
+    case 5:  // R4
       irsend.sendNEC(0xFF28D7, 32);
       break;
-    case 6:  // 
+    case 6:  // R5
       irsend.sendNEC(0xFF18E7, 32);
       break;
-    case 7:  // 
+    case 7:  // GREEN
       irsend.sendNEC(0xFF906F, 32);
       break;
-    case 8:  // 
+    case 8:  // G1
       irsend.sendNEC(0xFFB04F, 32);
       break;
-    case 9:  // 
+    case 9:  // G2
       irsend.sendNEC(0xFF8877, 32);
       break;
-    case 10:  // 
+    case 10:  // G3
       irsend.sendNEC(0xFFA857, 32);
       break;
-    case 11:  // 
+    case 11:  // G4
       irsend.sendNEC(0xFF9867, 32);
       break;
-    case 12:  // 
+    case 12:  // BLUE
       irsend.sendNEC(0xFF50AF, 32);
       break;
-    case 13:  // 
+    case 13:  // B1
       irsend.sendNEC(0xFF708F, 32);
       break;
-    case 14:  // 
+    case 14:  // B2
       irsend.sendNEC(0xFF48B7, 32);
       break;
-    case 15:  // 
+    case 15:  // B3
       irsend.sendNEC(0xFF6897, 32);
       break;
-    case 16:  // 
+    case 16:  // B4
       irsend.sendNEC(0xFF58A7, 32);
       break;
-    case 17:  // 
+    case 17:  // WHITE
       irsend.sendNEC(0xFFC03F, 32);
       break;
     default:

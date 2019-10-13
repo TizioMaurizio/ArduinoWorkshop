@@ -1,0 +1,6 @@
+{
+    "board": "esp32:esp32:esp32wrover",
+    "configuration": "PartitionScheme=huge_app,FlashMode=qio,FlashFreq=40,UploadSpeed=115200,DebugLevel=none",
+    "sketch": "..\\..\\PlatformIO\\Projects\\191009-202051-esp-wrover-kit\\src\\SerialToSerialBT.ino",
+    "port": "COM5"
+}

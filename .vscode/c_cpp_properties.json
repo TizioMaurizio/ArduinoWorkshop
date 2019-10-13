@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\Maurizio\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\**",
+                "C:\\Users\\Maurizio\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.3\\**",
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/Arduino Learning Materials/arduino Library/IRremote",
+                "${workspaceFolder}/Projects/ESP32-CAM/hardware/espressif/esp32/cores/esp32"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "intelliSenseMode": "msvc-x64",
+            "forcedInclude": []
+        }
+    ],
+    "version": 4
+}

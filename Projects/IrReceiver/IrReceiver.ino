@@ -1,3 +1,8 @@
+#include <boarddefs.h>
+#include <IRremote.h>
+#include <IRremoteInt.h>
+#include <ir_Lego_PF_BitStreamEncoder.h>
+
 /**IR Receiver
  * Connect IR receiver signal to pin 8
  * when it receives a signal the program generates the code for a case to put into a switch and waits 500ms,
@@ -6,7 +11,6 @@
  */
 
 
-#include <IRremote.h> //adds the library code to the sketch
 const int irReceiverPin = 8; //receiver module S pin is connected to arduino D8
 int num = 0;
 IRrecv irrecv(irReceiverPin);  
