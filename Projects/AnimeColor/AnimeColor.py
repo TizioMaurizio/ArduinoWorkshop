@@ -8,7 +8,7 @@ import mss
 from PIL import Image
 
 try:
-    arduino = serial.Serial('COM5', 9600, timeout=0)
+    arduino = serial.Serial('COM13', 9600, timeout=0)
 except Exception:
     arduino = None
 
@@ -28,21 +28,20 @@ height = 1080
 s_width = 1920
 s_height = 1080
 scalingFactor = 0.1
-
-interval = 50 #milliseconds
+interval = 90 # milliseconds
 prevTime = int(round(time.time() * 1000))
 cap = cv2.VideoCapture(0)    
 frame: np.ndarray
 with mss.mss() as sct:
     while(True):
+        t0 = time.time() * 1000
         # The screen part to capture
         monitor = {"top": 0, "left": 0, "width": s_width, "height": s_height}
         sct_img = sct.grab(monitor)
         img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "RGBX")
         frame = np.array(img)
         # ret, frame = cap.read()
-        
-        frameOriginal = frame
+
         width = int(s_width * scalingFactor)
         height = int(s_height * scalingFactor)
         frame = cv2.resize(frame,(width,height))
@@ -131,18 +130,20 @@ with mss.mss() as sct:
         results.append(np.count_nonzero(np.all(imagesum==sought,axis=2))*0.2)
         sought = [0,0,0]  
         results.append(np.count_nonzero(np.all(imagesum==sought,axis=2))*0.05)
-        currentTime = int(round(time.time() * 1000))
-        if(currentTime - prevTime > interval):
-            blast = results.index(max(results))
-            if(blast != 7):
-                arduino.write(chr(blast+48).encode())
-                cname: str = dictionary.get(blast, "invalid")
-                print(f"[Frame {i}] Firing {cname}")
-            prevTime = currentTime
-        cv2.imshow("frame", frame)
-        cv2.imshow("imagesum", imagesum)
+
+        # cv2.imshow("frame", frame)
+        # cv2.imshow("imagesum", imagesum)
+
+        blast = results.index(max(results))
+        if(blast != 7):
+            arduino.write(chr(blast+48).encode())
+            cname: str = dictionary.get(blast, "invalid")
         i += 1
-        if(cv2.waitKey(1) & 0xFF == ord('q')):
+        t1 = time.time() * 1000
+        delta_t = t1 - t0
+        print(f"[Iter {i}, {int(delta_t)} ms] Fired {cname}")
+        wait_time = max(1, interval - int(delta_t))
+        if(cv2.waitKey(wait_time) & 0xFF == ord('q')):
             break
 
 if arduino:
