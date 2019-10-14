@@ -27,7 +27,7 @@ void loop()
     //Serial.print(color);
     fire = (color != prev_color) && (currentMillis - previousMillis >= interval);
   }
-  if(fire){
+  if(fire){  // 8 9 : ; < = > ? @ A B (...)
     previousMillis = currentMillis;
     switch(color){
       case 90:  // OFF (enable with code 8)
@@ -43,7 +43,7 @@ void loop()
       case 93:  // R1
         irsend.sendNEC(0xFF30CF, 32);
         break;
-      case 94:  // R2
+      case '7':  // R2
         irsend.sendNEC(0xFF08F7, 32);
         break;
       case 95:  // R4
@@ -57,7 +57,7 @@ void loop()
         irsend.sendNEC(0xFF906F, 32);
         //Serial.print("Green");
         break;
-      case 98:  // G1
+      case '8':  // G1
         irsend.sendNEC(0xFFB04F, 32);
         break;
       case 9:  // G2
@@ -77,7 +77,7 @@ void loop()
       case 13:  // B1
         irsend.sendNEC(0xFF708F, 32);
         break;
-      case 14:  // B2
+      case '9':  // B2
         irsend.sendNEC(0xFF48B7, 32);
         break;
       case 15:  // B3
