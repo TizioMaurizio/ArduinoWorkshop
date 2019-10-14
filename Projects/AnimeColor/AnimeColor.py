@@ -11,7 +11,7 @@ s_width = 1680
 s_height = 1050
 scalingFactor = 0.01
 show = False
-interval = 100 # milliseconds
+interval = 200 # milliseconds
 
 # begin
 try:
@@ -169,15 +169,13 @@ with mss.mss() as sct:
             sought = [255,0,255]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             sought = [255,255,255]  
-            results.append(np.count_nonzero(np.all(imagesum==sought,axis=2))*0.2)
+            results.append(np.count_nonzero(np.all(imagesum==sought,axis=2))*0.1)
             sought = [0,128,255]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             sought = [128,255,0]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             sought = [255,0,128]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
-            sought = [0,0,0]  
-            results.append(np.count_nonzero(np.all(imagesum==sought,axis=2))*0.05)
             blast = results.index(max(results))
             if(blast != 10):
                 if(blast != prev_blast):
