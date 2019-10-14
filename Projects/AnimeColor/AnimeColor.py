@@ -34,14 +34,17 @@ dictionary: Dict[int, str] = {
 }
 prev_blast = 999
 i = 0
+
 width = 0
 height = 0
+
 prevTime = int(round(time.time() * 1000))
 # CAMERA uncomment for general camera input
 # cap = cv2.VideoCapture(1)    
 frame: np.ndarray
 with mss.mss() as sct:
     while(True):
+
         currentTime = int(round(time.time() * 1000))
         if(currentTime - prevTime >= interval):
             # CAMERA uncomment for general camera input
