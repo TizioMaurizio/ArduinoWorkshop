@@ -8,12 +8,15 @@ import mss
 from PIL import Image
 from screeninfo import get_monitors
 
+print(f"Welcome to AnimeColor!")
+
 curr_monitor = get_monitors()[0]
 # Settings
 s_width = curr_monitor.width
 s_height = curr_monitor.height
 print(f"Detected monitor size {s_width}x{s_height}")
 scalingFactor = 0.01
+print(f"Using scaling factor {scalingFactor}")
 show = False
 interval = 100 # milliseconds
 print(f"Color check interval {interval}")
