@@ -189,12 +189,12 @@ with mss.mss() as sct:
             sought = [255,0,128]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             blast = results.index(max(results))
-            if(blast != 10):
-                if(blast != prev_blast):
+            if blast != 10 and blast != prev_blast:
+                if arduino:
                     arduino.write(chr(blast+48).encode())
-                    prev_blast = blast
-                    cname: str = dictionary.get(blast, "invalid")
-                    print(f"[Frame {i}: {currentTime-prevTime-100}ms] Firing {cname}")
+                prev_blast = blast
+                cname: str = dictionary.get(blast, "invalid")
+                print(f"[Frame {i}: {currentTime-prevTime-100}ms] Firing {cname}")
             if(show):
                 cv2.imshow("frame", frame)
                 cv2.imshow("imagesum", imagesum)
