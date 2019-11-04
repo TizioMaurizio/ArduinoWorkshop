@@ -22,10 +22,14 @@ interval = 100 # milliseconds
 print(f"Color check interval {interval}")
 
 # begin
+serial_port = "COM3"
+print(f"Connecting to arduino on port {serial_port}")
 try:
-    arduino = serial.Serial('COM5', 9600, timeout=0)
+    arduino = serial.Serial(serial_port, 9600, timeout=0)
+    print("Connection successful!")
 except Exception:
     arduino = None
+    print("Connection error!")
 
 dictionary: Dict[int, str] = {
     0:"red",
