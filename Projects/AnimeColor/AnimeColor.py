@@ -15,7 +15,8 @@ s_height = curr_monitor.height
 print(f"Detected monitor size {s_width}x{s_height}")
 scalingFactor = 0.01
 show = False
-interval = 200 # milliseconds
+interval = 100 # milliseconds
+print(f"Color check interval {interval}")
 
 # begin
 try:
