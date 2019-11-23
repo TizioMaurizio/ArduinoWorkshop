@@ -22,7 +22,7 @@ interval = 100 # milliseconds
 print(f"Color check interval {interval}")
 
 # begin
-for serial_port_n in range(3, 10):
+for serial_port_n in range(3, 20):
     serial_port = f"COM{serial_port_n}"
     # print(f"Trying to connect to Arduino on port {serial_port}")
     try:
