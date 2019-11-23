@@ -15,7 +15,7 @@ curr_monitor = get_monitors()[0]
 s_width = curr_monitor.width
 s_height = curr_monitor.height
 print(f"Detected monitor size {s_width}x{s_height}")
-scalingFactor = 0.01
+scalingFactor = 0.1
 print(f"Using scaling factor {scalingFactor}")
 show = False
 interval = 100 # milliseconds
@@ -193,7 +193,11 @@ with mss.mss() as sct:
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             sought = [255,0,128]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
-            blast = results.index(max(results))
+            max_res = max(results)
+            if max_res == 0:
+                blast = 10
+            else:
+                blast = results.index(max_res)
             if blast != 10 and blast != prev_blast:
                 if arduino:
                     arduino.write(chr(blast+48).encode())
