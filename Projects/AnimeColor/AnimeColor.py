@@ -194,7 +194,11 @@ with mss.mss() as sct:
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             sought = [255,0,128]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
-            blast = results.index(max(results))
+            max_res = max(results)
+            if max_res == 0:
+                blast = 10
+            else:
+                blast = results.index(max_res)
             if blast != 10 and blast != prev_blast:
                 if arduino:
                     arduino.write(chr(blast+48).encode())
