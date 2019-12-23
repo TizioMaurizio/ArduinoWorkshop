@@ -15,7 +15,7 @@ unsigned long currentMillis = 0, previousMillis = 0;
 void setup()
 {
   Serial.begin(9600);
-  pinMode(13, OUTPUT); 
+  pinMode(9, OUTPUT);
 }
 
 void loop()
