@@ -173,6 +173,7 @@ with mss.mss() as sct:
             # Work out what we are looking for
             # Find all pixels where the 3 RGB values match "sought", and count
             results = []
+            #          B G R
             sought = [0,0,255]
             results.append(np.count_nonzero(np.all(imagesum==sought,axis=2)))
             sought = [255,0,0]
