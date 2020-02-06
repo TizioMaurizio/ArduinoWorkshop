@@ -69,7 +69,7 @@ void loop(){
   }   
   if(Serial.available()){
       int a = Serial.parseInt();
-      steer.write(a);
+      power.write(a);
       Serial.parseInt();
       Serial.println(a, DEC);
     }
