@@ -166,7 +166,6 @@ void loop() {
     Serial.println();
 
     Serial.println();
-    delay(1000);
   }
   delay(10);
 }
