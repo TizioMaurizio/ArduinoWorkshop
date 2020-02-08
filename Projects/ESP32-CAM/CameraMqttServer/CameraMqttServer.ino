@@ -1,6 +1,9 @@
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <ArduinoMqttClient.h>
+#include "soc/soc.h" //disable brownout problems
+#include "soc/rtc_cntl_reg.h"  //disable brownout problems
+
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
@@ -29,6 +32,7 @@ const char* password = "HnbD76SPtLs7G8vS";
 void startCameraServer();
 
 void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
