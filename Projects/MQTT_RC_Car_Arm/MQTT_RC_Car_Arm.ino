@@ -24,6 +24,8 @@
 #define SERVOMAX  575 // this is the 'maximum' pulse length count (out of 4096)
 
 char receivedChar;
+int potpin = 0;  // analog pin used to connect the potentiometer
+int val;    // variable to read the value from the analog pin
 boolean newData = false;
 boolean incoming = false;
 uint8_t servonum = 0;
@@ -37,14 +39,14 @@ const int B1B = 9;//define pin 10 for B1B
 int rotate = 90;
 int joint1 = 90;
 int joint2 = 90;
-int hand = 90;
+int hand = 180;
 
 void setup() {
   // initialize serial:
   Serial.begin(115200);
   pinMode(B1A,OUTPUT);// define pin as output
   pinMode(B1B,OUTPUT);
-  
+  pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
   pinMode(A1A,OUTPUT);
   pinMode(A1B,OUTPUT);  
   Serial.println("16 channel Servo test!");
@@ -59,7 +61,10 @@ void setup() {
 void loop() {
  recvOneChar();
  showNewData();
- 
+ val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
+  val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
+  pwm.setPWM(15, 0, angleToPulse(180 - val) );
+  pwm.setPWM(7, 0, angleToPulse(val) ); 
 }
 
 void recvOneChar() {
@@ -119,17 +124,19 @@ void showNewData() {
          if(receivedChar == '1'){
           pwm.setPWM(0, 0, angleToPulse(rotate+=10) );
          }
-         if(receivedChar == '2'){
-          pwm.setPWM(4, 0, angleToPulse(joint1-=10) );
+         /*if(receivedChar == '2'){
+          pwm.setPWM(7, 0, angleToPulse(joint1-=20) );
+          pwm.setPWM(15, 0, angleToPulse(joint1-=20) );
          }
          if(receivedChar == '3'){
-          pwm.setPWM(4, 0, angleToPulse(joint1+=10) );
-         }
+          pwm.setPWM(7, 0, angleToPulse(joint1+=20) );
+          pwm.setPWM(15, 0, angleToPulse(joint1+=20) );
+         }*/
          if(receivedChar == '4'){
-          pwm.setPWM(7, 0, angleToPulse(joint2-=10) );
+          pwm.setPWM(13, 0, angleToPulse(joint2-=10) );
          }
          if(receivedChar == '5'){
-          pwm.setPWM(7, 0, angleToPulse(joint2+=10) );
+          pwm.setPWM(13, 0, angleToPulse(joint2+=10) );
          }
          if(receivedChar == '6'){
           pwm.setPWM(12, 0, angleToPulse(hand-=10) );
