@@ -21,13 +21,13 @@
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
-const char broker[] = "192.168.1.8";
+const char broker[] = "192.168.43.1";
 int        port     = 1883;
 const char topic[]  = "scan";
 
 
-const char* ssid = "TIM-37482183";
-const char* password = "HnbD76SPtLs7G8vS";
+const char* ssid = "RedmiMau";
+const char* password = "mau12397";
 
 void startCameraServer();
 
@@ -35,6 +35,7 @@ void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
   Serial.begin(115200);
   Serial.setDebugOutput(true);
+  Serial.print("&à");
   Serial.println();
 
   camera_config_t config;
@@ -116,7 +117,7 @@ void setup() {
   }
   Serial.println("");
   Serial.println("WiFi connected");
-
+  Serial.print("&è");
   Serial.print("Attempting to connect to the MQTT broker: ");
   Serial.println(broker);
 
@@ -150,6 +151,10 @@ void setup() {
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
+  mqttClient.beginMessage(topic);
+  mqttClient.print(WiFi.localIP());
+  mqttClient.endMessage();
+  Serial.print("&ì");
 }
 
 void loop() {

@@ -45,6 +45,7 @@ bool potMode = false;
 void setup() {
   // initialize serial:
   Serial.begin(115200);
+  Serial.println("Begin");
   pinMode(B1A,OUTPUT);// define pin as output
   pinMode(B1B,OUTPUT);
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
@@ -68,18 +69,19 @@ void loop() {
   pwm.setPWM(15, 0, angleToPulse(180 - val) );
   pwm.setPWM(7, 0, angleToPulse(val) ); 
  }
+ delay(10);
 }
 
 void recvOneChar() {
  if (Serial.available() > 0) {
  receivedChar = Serial.read();
  if(receivedChar == '&' || incoming){
-  if(receivedChar == '&' && incoming)
+  if(incoming)
     incoming = false;
   else{
     incoming = true;
-    newData = true;
   }
+  newData = true;
  }
  }
 }
@@ -122,10 +124,10 @@ void showNewData() {
                   Serial.println("Stopping");
          }
          if(receivedChar == '0'){
-          pwm.setPWM(0, 0, angleToPulse(rotate-=10) );
+          pwm.setPWM(2, 0, angleToPulse(rotate-=10) );
          }
          if(receivedChar == '1'){
-          pwm.setPWM(0, 0, angleToPulse(rotate+=10) );
+          pwm.setPWM(2, 0, angleToPulse(rotate+=10) );
          }
          if(!potMode){
            if(receivedChar == '2'){
@@ -134,8 +136,7 @@ void showNewData() {
             pwm.setPWM(15, 0, angleToPulse(180-joint1) );
            }
            if(receivedChar == '3'){
-            joint1+=15
-            ;
+            joint1+=15;
             pwm.setPWM(7, 0, angleToPulse(joint1) );
             pwm.setPWM(15, 0, angleToPulse(180-joint1) );
            }
