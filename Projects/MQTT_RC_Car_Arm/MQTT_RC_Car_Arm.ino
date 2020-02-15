@@ -40,6 +40,8 @@ int rotate = 90;
 int joint1 = 90;
 int joint2 = 90;
 int hand = 180;
+int camHor = 90;
+int camVer = 90;
 bool potMode = false;
 
 void setup() {
@@ -66,8 +68,9 @@ void loop() {
  if(potMode){
   val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
   val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
-  pwm.setPWM(15, 0, angleToPulse(180 - val) );
-  pwm.setPWM(7, 0, angleToPulse(val) ); 
+  /*pwm.setPWM(15, 0, angleToPulse(180 - val) );
+  pwm.setPWM(7, 0, angleToPulse(val) ); */
+  pwm.setPWM(1, 0, angleToPulse(val) );
  }
  delay(10);
 }
@@ -86,6 +89,7 @@ void recvOneChar() {
  }
 }
 
+        
 /*
  * angleToPulse(int ang)
  * gets angle in degree and returns the pulse width
@@ -104,30 +108,30 @@ void showNewData() {
  if (newData == true) {
  Serial.print(receivedChar);
          if(receivedChar == 'u'){
-          motorA('L');
-                      motorB('L');
-                      Serial.println("Going Forward");
+            forward();
+            Serial.println("Going Forward");
          }
          if(receivedChar == 'l'){
-          motorA('L');
-                  motorB('R');
-                  Serial.println("Turning Right");
+            left();
+            Serial.println("Turning Left");
          }
          if(receivedChar == 'r'){
-          motorA('R');
-                  motorB('L');
-                  Serial.println("Turning Left");
+            right();
+            Serial.println("Turning Right");
          }
          if(receivedChar == 's'){
-          motorA('O');
-                  motorB('O');
-                  Serial.println("Stopping");
+            coast();
+            Serial.println("Stopping");
+         }
+         if(receivedChar == 'b'){
+            back();
+            Serial.println("Going back");
          }
          if(receivedChar == '0'){
-          pwm.setPWM(2, 0, angleToPulse(rotate-=10) );
+          pwm.setPWM(14, 0, angleToPulse(rotate-=20) );
          }
          if(receivedChar == '1'){
-          pwm.setPWM(2, 0, angleToPulse(rotate+=10) );
+          pwm.setPWM(14, 0, angleToPulse(rotate+=20) );
          }
          if(!potMode){
            if(receivedChar == '2'){
@@ -153,11 +157,62 @@ void showNewData() {
          if(receivedChar == '7'){
           pwm.setPWM(12, 0, angleToPulse(hand+=10) );
          }
+         if(receivedChar == 'm'){
+          pwm.setPWM(0, 0, angleToPulse(camVer-=10) );
+         }
+         if(receivedChar == 'n'){
+          pwm.setPWM(0, 0, angleToPulse(camVer+=10) );
+         }
+         if(receivedChar == 'j'){
+          pwm.setPWM(1, 0, angleToPulse(camHor-=10) );
+         }
+         if(receivedChar == 'k'){
+          pwm.setPWM(1, 0, angleToPulse(camHor+=10) );
+         }
+         if(receivedChar == 'y'){
+          pwm.setPWM(10, 0, angleToPulse(hand-=15) );
+         }
+         if(receivedChar == 'u'){
+          pwm.setPWM(10, 0, angleToPulse(hand+=15) );
+         }
  newData = false;
  }
 }
 
+void coast()
+{
+  motorA('O');
+  motorB('O');
+  delay(50);
+}
 
+void forward()
+{
+  coast();
+  motorA('L');
+  motorB('L');
+}
+
+void back()
+{
+  coast();
+  motorA('R');
+  motorB('R');
+}
+
+void right()
+{
+  coast();
+  motorA('R');
+  motorB('L');
+}
+
+void left()
+{
+  coast();
+  motorA('L');
+  motorB('R');
+}
 /*
  * @motorA
  * activation rotation of motor A
