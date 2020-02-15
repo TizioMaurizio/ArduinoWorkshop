@@ -38,10 +38,11 @@ const int B1A = 8;//define pin 8 for B1A
 const int B1B = 9;//define pin 10 for B1B
 int rotate = 90;
 int joint1 = 90;
-int joint2 = 90;
-int hand = 180;
-int camHor = 90;
-int camVer = 90;
+int joint2 = 30;
+int hand = 150;
+int camVer = 160;
+int camHor = 200;
+
 bool potMode = false;
 
 void setup() {
@@ -65,17 +66,20 @@ void setup() {
 void loop() {
  recvOneChar();
  showNewData();
- if(potMode){
-  val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
-  val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
-  /*pwm.setPWM(15, 0, angleToPulse(180 - val) );
-  pwm.setPWM(7, 0, angleToPulse(val) ); */
-  pwm.setPWM(1, 0, angleToPulse(val) );
- }
  delay(10);
 }
 
-void recvOneChar() {
+/* Potentiometer mode for testing, put in loop() to use
+if(potMode){
+  val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
+  val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
+  pwm.setPWM(15, 0, angleToPulse(180 - val) );
+  pwm.setPWM(7, 0, angleToPulse(val) );
+  pwm.setPWM(1, 0, angleToPulse(val) );
+ }
+*/
+
+void recvOneChar() { //Checks if a '&' was received, if yes next character on serial will be stored
  if (Serial.available() > 0) {
  receivedChar = Serial.read();
  if(receivedChar == '&' || incoming){
@@ -107,6 +111,8 @@ int angleToPulse(int ang){
 void showNewData() {
  if (newData == true) {
  Serial.print(receivedChar);
+
+         //MOVEMENT
          if(receivedChar == 'u'){
             forward();
             Serial.println("Going Forward");
@@ -127,48 +133,80 @@ void showNewData() {
             back();
             Serial.println("Going back");
          }
-         if(receivedChar == '0'){
-          pwm.setPWM(14, 0, angleToPulse(rotate-=20) );
+
+         //ROTATE
+         //start 90, max 150, min 30
+         if(receivedChar == '0'){ 
+          if(rotate > 30)
+            pwm.setPWM(14, 0, angleToPulse(rotate-=20) ); 
          }
          if(receivedChar == '1'){
-          pwm.setPWM(14, 0, angleToPulse(rotate+=20) );
+          if(rotate < 150)
+            pwm.setPWM(14, 0, angleToPulse(rotate+=20) );
          }
-         if(!potMode){
-           if(receivedChar == '2'){
+
+         //JOINT 1
+         //start 90, max 105, min 15
+         if(receivedChar == '2'){
+          if(joint1 > 15){
             joint1-=15;
             pwm.setPWM(7, 0, angleToPulse(joint1) );
             pwm.setPWM(15, 0, angleToPulse(180-joint1) );
-           }
-           if(receivedChar == '3'){
+          }
+         }
+         if(receivedChar == '3'){
+          if(joint1 < 105){
             joint1+=15;
             pwm.setPWM(7, 0, angleToPulse(joint1) );
             pwm.setPWM(15, 0, angleToPulse(180-joint1) );
-           }
+          }
          }
+
+         //JOINT 2
+         //start 30, max 240, min 0
          if(receivedChar == '4'){
-          pwm.setPWM(13, 0, angleToPulse(joint2-=15) );
+          if(joint2 > 0)
+            pwm.setPWM(13, 0, angleToPulse(joint2-=15) );
          }
          if(receivedChar == '5'){
-          pwm.setPWM(13, 0, angleToPulse(joint2+=15) );
+          if(joint2 < 240)
+            pwm.setPWM(13, 0, angleToPulse(joint2+=15) ); 
          }
-         if(receivedChar == '6'){
-          pwm.setPWM(12, 0, angleToPulse(hand-=10) );
+         
+         //HAND
+         //start 150, max 180, min 100
+         if(receivedChar == '6'){ 
+          if(hand > 100)
+            pwm.setPWM(12, 0, angleToPulse(hand-=10) ); //OPEN
          }
          if(receivedChar == '7'){
-          pwm.setPWM(12, 0, angleToPulse(hand+=10) );
+          if(hand < 180)
+            pwm.setPWM(12, 0, angleToPulse(hand+=10) ); //CLOSE
          }
+         
+         //CAMERA VERTICAL
+         //start 160, max 230, min 70
          if(receivedChar == 'm'){
-          pwm.setPWM(0, 0, angleToPulse(camVer-=10) );
+          if(camVer > 70)
+            pwm.setPWM(0, 0, angleToPulse(camVer-=10) ); //UP
          }
          if(receivedChar == 'n'){
-          pwm.setPWM(0, 0, angleToPulse(camVer+=10) );
+          if(camVer < 230)
+            pwm.setPWM(0, 0, angleToPulse(camVer+=10) ); //DOWN
          }
-         if(receivedChar == 'j'){
-          pwm.setPWM(1, 0, angleToPulse(camHor-=10) );
+         
+         //CAMERA HORIZONTAL
+         //start 200, max 250, min 150
+         if(receivedChar == 'j'){ 
+          if(camVer > 150)
+            pwm.setPWM(1, 0, angleToPulse(camHor-=10) ); //LEFT
          }
          if(receivedChar == 'k'){
-          pwm.setPWM(1, 0, angleToPulse(camHor+=10) );
+          if(camVer < 250)
+            pwm.setPWM(1, 0, angleToPulse(camHor+=10) ); //RIGHT
          }
+
+         //UNUSED
          if(receivedChar == 'y'){
           pwm.setPWM(10, 0, angleToPulse(hand-=15) );
          }
@@ -179,6 +217,8 @@ void showNewData() {
  }
 }
 
+
+//MOVEMENT functions
 void coast()
 {
   motorA('O');
@@ -213,6 +253,9 @@ void left()
   motorA('L');
   motorB('R');
 }
+
+
+//MOTOR functions
 /*
  * @motorA
  * activation rotation of motor A
