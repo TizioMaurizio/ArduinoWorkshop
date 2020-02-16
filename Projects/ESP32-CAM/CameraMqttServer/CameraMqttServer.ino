@@ -15,6 +15,7 @@
 //#define CAMERA_MODEL_M5STACK_PSRAM
 //#define CAMERA_MODEL_M5STACK_WIDE
 #define CAMERA_MODEL_AI_THINKER
+#define LED_BUILTIN 4
 
 #include "camera_pins.h"
 
@@ -155,7 +156,10 @@ void setup() {
   mqttClient.print(WiFi.localIP());
   mqttClient.endMessage();
   Serial.print("&ì");
+  digitalWrite(4, HIGH);
 }
+
+boolean light = false;
 
 void loop() {
   // put your main code here, to run repeatedly:
@@ -164,7 +168,15 @@ void loop() {
     // we received a message, print out the topic and contents
     // use the Stream interface to print the contents
     while (mqttClient.available()) {
-      Serial.print((char)mqttClient.read());
+      char received = (char)mqttClient.read();
+      Serial.print(received);
+      /*if (received == ','){
+        light = !light;
+        if(light)
+          digitalWrite(LED_BUILTIN, HIGH);
+        else
+          digitalWrite(LED_BUILTIN, LOW);
+      }*/
     }
   }
   delay(10);

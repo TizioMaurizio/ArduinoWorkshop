@@ -198,11 +198,11 @@ void showNewData() {
          //CAMERA HORIZONTAL
          //start 200, max 250, min 150
          if(receivedChar == 'j'){ 
-          if(camVer > 150)
+          if(camHor > 150)
             pwm.setPWM(1, 0, angleToPulse(camHor-=10) ); //LEFT
          }
          if(receivedChar == 'k'){
-          if(camVer < 250)
+          if(camHor < 250)
             pwm.setPWM(1, 0, angleToPulse(camHor+=10) ); //RIGHT
          }
 
