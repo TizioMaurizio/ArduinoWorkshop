@@ -18,7 +18,7 @@ cv2.createTrackbar("B", "Trackbars", 0, 255, nothing)
 cv2.createTrackbar("G", "Trackbars", 0, 255, nothing)
 cv2.createTrackbar("R", "Trackbars", 0, 255, nothing)
 
-cap = cv2.VideoCapture('http://192.168.1.3:8080/video')
+cap = cv2.VideoCapture('http://192.168.1.9:8080/video')
 
 while(True):
     ret, frame = cap.read()
