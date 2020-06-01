@@ -19,16 +19,16 @@ int val;    // variable to read the value from the analog pin
 uint8_t servonum = 0;
 
 void setup() {
-  pwm.begin();
   
+  Serial.begin(9600);
+  pwm.begin();
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
 }
 
 void loop() {
   val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
   val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
-  pwm.setPWM(15, 0, angleToPulse(180 - val) );
-  pwm.setPWM(7, 0, angleToPulse(val) );  
+  pwm.setPWM(0, 0, angleToPulse(val) );  
   delay(15);                           // waits for the servo to get there
 }
 
