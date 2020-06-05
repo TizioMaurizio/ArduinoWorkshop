@@ -16,7 +16,7 @@ int val=0;    // variable to read the value from the analog pin
 int angle=-3;
 int check;
 String buf;
-char motor = 'a';
+char motor = 'z';
 int servos[16] = {90, 90, 60, 40, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90}; // MOTOR STARTING POSITIONS
 bool potMode = false;
 
@@ -50,7 +50,6 @@ void loop() {
       if(buf[0]<97 || buf[0]>97+15){
         Serial.println("Selected motor out of bounds, insert a letter among");
         Serial.println("a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p.");
-        Serial.println("CHOOSING 'p' AS DEFAULT");
       }
       else{
         motor=buf[0];
