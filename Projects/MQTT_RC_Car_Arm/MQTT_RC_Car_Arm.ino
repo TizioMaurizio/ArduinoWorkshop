@@ -28,6 +28,7 @@ int potpin = 0;  // analog pin used to connect the potentiometer
 int val;    // variable to read the value from the analog pin
 boolean newData = false;
 boolean incoming = false;
+boolean controller = true;
 uint8_t servonum = 0;
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
@@ -82,7 +83,7 @@ if(potMode){
 void recvOneChar() { //Checks if a '&' was received, if yes next character on serial will be stored
  if (Serial.available() > 0) {
  receivedChar = Serial.read();
- if(receivedChar == '&' || incoming){
+ if(receivedChar == '&' || incoming || controller){
   if(incoming)
     incoming = false;
   else{
@@ -137,25 +138,22 @@ void showNewData() {
          //ROTATE
          //start 90, max 150, min 30
          if(receivedChar == '0'){ 
-          if(rotate > 10)
-            pwm.setPWM(14, 0, angleToPulse(rotate-=20) );
-          Serial.println(rotate);
+          if(rotate > 30)
+            pwm.setPWM(14, 0, angleToPulse(rotate-=20) ); 
          }
          if(receivedChar == '1'){
-          if(rotate < 170)
+          if(rotate < 150)
             pwm.setPWM(14, 0, angleToPulse(rotate+=20) );
-          Serial.println(rotate);
          }
 
          //JOINT 1
          //start 90, max 105, min 15
          if(receivedChar == '2'){
-          if(joint1 > 0){
+          if(joint1 > 15){
             joint1-=15;
             pwm.setPWM(7, 0, angleToPulse(joint1) );
             pwm.setPWM(15, 0, angleToPulse(180-joint1) );
           }
-          Serial.println(joint1);
          }
          if(receivedChar == '3'){
           if(joint1 < 105){
@@ -163,7 +161,6 @@ void showNewData() {
             pwm.setPWM(7, 0, angleToPulse(joint1) );
             pwm.setPWM(15, 0, angleToPulse(180-joint1) );
           }
-          Serial.println(joint1);
          }
 
          //JOINT 2
@@ -171,12 +168,10 @@ void showNewData() {
          if(receivedChar == '4'){
           if(joint2 > 0)
             pwm.setPWM(13, 0, angleToPulse(joint2-=15) );
-          Serial.println(joint2);
          }
          if(receivedChar == '5'){
           if(joint2 < 240)
-            pwm.setPWM(13, 0, angleToPulse(joint2+=15) );
-          Serial.println(joint2); 
+            pwm.setPWM(13, 0, angleToPulse(joint2+=15) ); 
          }
          
          //HAND
@@ -184,12 +179,10 @@ void showNewData() {
          if(receivedChar == '6'){ 
           if(hand > 100)
             pwm.setPWM(12, 0, angleToPulse(hand-=10) ); //OPEN
-          Serial.println(hand);
          }
          if(receivedChar == '7'){
           if(hand < 180)
             pwm.setPWM(12, 0, angleToPulse(hand+=10) ); //CLOSE
-          Serial.println(hand);
          }
          
          //CAMERA VERTICAL
@@ -197,12 +190,10 @@ void showNewData() {
          if(receivedChar == 'm'){
           if(camVer > 70)
             pwm.setPWM(0, 0, angleToPulse(camVer-=10) ); //UP
-          Serial.println(camVer);
          }
          if(receivedChar == 'n'){
           if(camVer < 230)
             pwm.setPWM(0, 0, angleToPulse(camVer+=10) ); //DOWN
-          Serial.println(camVer);
          }
          
          //CAMERA HORIZONTAL
@@ -210,21 +201,19 @@ void showNewData() {
          if(receivedChar == 'j'){ 
           if(camHor > 150)
             pwm.setPWM(1, 0, angleToPulse(camHor-=10) ); //LEFT
-          Serial.println(camHor);
          }
          if(receivedChar == 'k'){
           if(camHor < 250)
             pwm.setPWM(1, 0, angleToPulse(camHor+=10) ); //RIGHT
-          Serial.println(camHor);
          }
 
          //UNUSED
-         /*if(receivedChar == 'y'){
+         if(receivedChar == 'y'){
           pwm.setPWM(10, 0, angleToPulse(hand-=15) );
          }
-         if(receivedChar == 'y'){
+         if(receivedChar == 'u'){
           pwm.setPWM(10, 0, angleToPulse(hand+=15) );
-         }*/
+         }
  newData = false;
  }
 }

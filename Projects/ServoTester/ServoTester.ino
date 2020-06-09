@@ -5,36 +5,42 @@
 #include <Servo.h>
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
+
 #define SERVOMIN  125 // this is the 'minimum' pulse length count (out of 4096)
 #define SERVOMAX  575 // this is the 'maximum' pulse length count (out of 4096)
+#define NONE -99
 
-Servo myservo;  // create servo object to control a servo
+Servo myservo;  // for use without drive, signal on pin 9
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
+// MOTOR STARTING POSITIONS
+int servos[16] = {90, 90, 60, 40, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90};
+
+// Potentiometer variables
 int potpin = 0;  // analog pin used to connect the potentiometer
-int offset = 0;
-int offpot = 0;
-bool newoffset = false;
-int val=0;    // variable to read the value from the analog pin
-int angle=-3;
-int check;
+int offset = 0;  // motor - potpin
+int offpot = 0;  // potpin + offset
+int val = 0;    // variable to read the value from the analog pin
+
+// General variables
+int angle = NONE;
+int input;
 String buf;
-char motor = 'z';
-int servos[16] = {90, 90, 60, 40, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90}; // MOTOR STARTING POSITIONS
+char motor = NONE;
 bool potMode = false;
 
-// The value will quickly become too large for an int to store
-unsigned long previousMillis = 0;        // will store last time LED was updated
-// constants won't change:
-const long interval = 1000;           // interval at which to blink (milliseconds)
+// Time interval checker variables for potentiometer angle monitor
+unsigned long previousMillis = 0;
+const long interval = 1000;
 
 
 void setup() {
-  myservo.attach(9);  // attaches the servo on pin 9 to the servo object
+  myservo.attach(9);  // attaches the single servo on pin 9 to the servo object
   pwm.begin();
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
   Serial.begin(9600);
   Serial.setTimeout(10); // readString reads until this timeout
+
   Serial.println("Servo controller: input -1 to use potentiometer, -2 to print current angle");
   Serial.println("else input a letter to choose the motor and an int to set angle");
   Serial.println("signal D9 is for use without servo drive");
@@ -50,34 +56,41 @@ void setup() {
 }
 
 void loop() {
+  //  if there was an input
   if(Serial.available()){
     buf = Serial.readString();
-    check = buf.toInt();
+    input = buf.toInt();
     
-    if(check==0 && buf[0]!='0'){  // if input was a char (clamps strings)
-      if(buf[0]<97 || buf[0]>97+15){
+    // if input was a char (clamps strings)
+    if(input==0 && buf[0]!='0'){  
+      if(buf[0]<97 || buf[0]>97+15){  // 97 is ASCII 'a'
         Serial.println("Selected motor out of bounds, insert a letter among");
         Serial.println("a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p.");
       }
       else{
-        motor=buf[0];
+        motor = buf[0]-97;
         Serial.print("Now using ");
         Serial.println(motor);
       }
-      angle=-3;
+      angle=NONE;
       potMode = false;
     }
-    else{ // if input was integer
-      angle = check;
+
+    // if input was integer
+    else{
+      angle = input;
       Serial.read();
+
+      //  Start potentiometer control
       if(angle==-1){
-        newoffset = true;
+        potMode=true;
+        offset = servos[motor] - val;  // update potentiometer offset
         Serial.print("Switched to potentiometer control of motor ");
         Serial.println(motor);
       }
-      else
-        newoffset = false;
-      if(angle>=0 && angle<=180){ // set servo angle
+
+      //  Set motor angle
+      if(angle>=0 && angle<=180){  // set servo angle
         if(potMode){
           Serial.println();
           Serial.println("Potentiometer control disabled");
@@ -89,44 +102,46 @@ void loop() {
         Serial.println(angle);
         val = angle;
         myservo.write(val);
-        servos[motor-97] = angle;
-        pwm.setPWM(motor-97, 0, angleToPulse(servos[motor-97]));
+        servos[motor] = angle;
+        pwm.setPWM(motor, 0, angleToPulse(servos[motor]));
       }
       if(angle>180)
         Serial.println("Insert angle value between 0 and 180");
-      if(angle==-2){  // print potentiometer angle
+        
+      //  Print potentiometer angle
+      if(angle==-2){
         Serial.print("Motor ");
         Serial.print(motor);
         Serial.print(" -> ");
-        Serial.println(servos[motor-97]);
+        Serial.println(servos[motor]);
         if(potMode)
           angle=-1;
       }
     }
   }
-  if(angle==-1){
-    potMode=true;
+
+  //  if in potentiometer mode
+  if(potMode){
+    
     val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
     val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
     myservo.write(val);                  // sets the servo position according to the scaled value
-    if(newoffset){
-      newoffset = false;
-      offset = servos[motor-97] - val;
-    }
-    offpot = val + offset;
+    offpot = val + offset;  // offset updated when switching to potmode
     if(offpot>=0 && offpot<=180){
-      servos[motor-97] = offpot;
-      pwm.setPWM((char)motor - 97, 0, angleToPulse(servos[motor-97]));
+      servos[motor] = offpot;
+      pwm.setPWM((char)motor - 97, 0, angleToPulse(servos[motor]));
     }
-    //Serial.println(val);
+
+    //  angle monitor
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= interval) {
+      Serial.print(" - ");
+      Serial.print(servos[motor]);
+      previousMillis = currentMillis;
+    }
   }
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval && potMode) {
-    Serial.print(" - ");
-    Serial.print(servos[motor-97]);
-    previousMillis = currentMillis;
-  }
-  delay(15);                           // waits for the servo to get there
+  
+  delay(15);
 }
 
 
