@@ -12,6 +12,9 @@ Servo myservo;  // create servo object to control a servo
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 int potpin = 0;  // analog pin used to connect the potentiometer
+int offset = 0;
+int offpot = 0;
+bool newoffset = false;
 int val=0;    // variable to read the value from the analog pin
 int angle=-3;
 int check;
@@ -19,6 +22,11 @@ String buf;
 char motor = 'z';
 int servos[16] = {90, 90, 60, 40, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90}; // MOTOR STARTING POSITIONS
 bool potMode = false;
+
+// The value will quickly become too large for an int to store
+unsigned long previousMillis = 0;        // will store last time LED was updated
+// constants won't change:
+const long interval = 1000;           // interval at which to blink (milliseconds)
 
 
 void setup() {
@@ -62,19 +70,30 @@ void loop() {
     else{ // if input was integer
       angle = check;
       Serial.read();
+      if(angle==-1){
+        newoffset = true;
+        Serial.print("Switched to potentiometer control of motor ");
+        Serial.println(motor);
+      }
+      else
+        newoffset = false;
       if(angle>=0 && angle<=180){ // set servo angle
+        if(potMode){
+          Serial.println();
+          Serial.println("Potentiometer control disabled");
+        }
+        potMode=false;
         Serial.print("Motor ");
         Serial.print(motor);
         Serial.print(" -> ");
         Serial.println(angle);
-        potMode=false;
         val = angle;
         myservo.write(val);
         servos[motor-97] = angle;
         pwm.setPWM(motor-97, 0, angleToPulse(servos[motor-97]));
       }
       if(angle>180)
-        Serial.println("Angle too high! Insert value between 0 and 180");
+        Serial.println("Insert angle value between 0 and 180");
       if(angle==-2){  // print potentiometer angle
         Serial.print("Motor ");
         Serial.print(motor);
@@ -90,9 +109,22 @@ void loop() {
     val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
     val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
     myservo.write(val);                  // sets the servo position according to the scaled value
-    servos[motor-97] = val;
-    pwm.setPWM((char)motor - 97, 0, angleToPulse(servos[motor-97]));
+    if(newoffset){
+      newoffset = false;
+      offset = servos[motor-97] - val;
+    }
+    offpot = val + offset;
+    if(offpot>=0 && offpot<=180){
+      servos[motor-97] = offpot;
+      pwm.setPWM((char)motor - 97, 0, angleToPulse(servos[motor-97]));
+    }
     //Serial.println(val);
+  }
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval && potMode) {
+    Serial.print(" - ");
+    Serial.print(servos[motor-97]);
+    previousMillis = currentMillis;
   }
   delay(15);                           // waits for the servo to get there
 }
