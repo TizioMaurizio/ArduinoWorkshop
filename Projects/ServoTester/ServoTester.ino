@@ -70,7 +70,7 @@ void loop() {
       else{
         motor = buf[0]-97;
         Serial.print("Now using ");
-        Serial.println(motor);
+        Serial.println((char)(motor+97));
       }
       angle=NONE;
       potMode = false;
@@ -84,9 +84,11 @@ void loop() {
       //  Start potentiometer control
       if(angle==-1){
         potMode=true;
+        val = analogRead(potpin);  
+        val = map(val, 0, 1023, 0, 180);
         offset = servos[motor] - val;  // update potentiometer offset
         Serial.print("Switched to potentiometer control of motor ");
-        Serial.println(motor);
+        Serial.println((char)(motor+97));
       }
 
       //  Set motor angle
@@ -97,7 +99,7 @@ void loop() {
         }
         potMode=false;
         Serial.print("Motor ");
-        Serial.print(motor);
+        Serial.print((char)(motor+97));
         Serial.print(" -> ");
         Serial.println(angle);
         val = angle;
@@ -111,7 +113,7 @@ void loop() {
       //  Print potentiometer angle
       if(angle==-2){
         Serial.print("Motor ");
-        Serial.print(motor);
+        Serial.print((char)(motor+97));
         Serial.print(" -> ");
         Serial.println(servos[motor]);
         if(potMode)
@@ -129,7 +131,7 @@ void loop() {
     offpot = val + offset;  // offset updated when switching to potmode
     if(offpot>=0 && offpot<=180){
       servos[motor] = offpot;
-      pwm.setPWM((char)motor - 97, 0, angleToPulse(servos[motor]));
+      pwm.setPWM(motor, 0, angleToPulse(servos[motor]));
     }
 
     //  angle monitor
