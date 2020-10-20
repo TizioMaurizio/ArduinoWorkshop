@@ -44,7 +44,7 @@ void setup()
 
   // Set threshold sensivty. Default 3.
   // If you don't want use threshold, comment this line or set 0.
-  mpu.setThreshold(1);
+  mpu.setThreshold(0);
 }
 
 void loop()
@@ -70,6 +70,8 @@ void loop()
     pwm.setPWM(0, 0, angleToPulse(roll));
   if(-pitch+90<=180 && -pitch+90>=0)
     pwm.setPWM(1, 0, angleToPulse(-pitch+90));
+  if(-yaw+90<=180 && -yaw+90>=0)
+    pwm.setPWM(2, 0, angleToPulse(-yaw+90));
   // Wait to full timeStep period
   delay((timeStep*1000) - (millis() - timer));
 }

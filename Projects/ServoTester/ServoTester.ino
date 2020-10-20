@@ -14,7 +14,7 @@ Servo myservo;  // for use without drive, signal on pin 9
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // MOTOR STARTING POSITIONS
-int servos[16] = {90, 90, 60, 40, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90};
+int servos[16] = {109, 90, 60, 40, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90};
 
 // Potentiometer variables
 int potpin = 0;  // analog pin used to connect the potentiometer
@@ -27,7 +27,7 @@ int angle = NONE;
 int input;
 String buf;
 char motor = NONE;
-bool potMode = false;
+bool potMode = true;
 
 // Time interval checker variables for potentiometer angle monitor
 unsigned long previousMillis = 0;
@@ -36,14 +36,16 @@ const long interval = 1000;
 
 void setup() {
   myservo.attach(9);  // attaches the single servo on pin 9 to the servo object
+  val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
+  val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
+  myservo.write(val);
   pwm.begin();
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
   Serial.begin(9600);
   Serial.setTimeout(10); // readString reads until this timeout
-
   Serial.println("Servo controller: input -1 to use potentiometer, -2 to print current angle");
   Serial.println("else input a letter to choose the motor and an int to set angle");
-  Serial.println("signal D9 is for use without servo drive");
+  Serial.println("signal D9 is for use without servo drive (motor q)");
   Serial.println("Initializing motors to values ");
   for(int i=0; i<16; i++){  // power motors to starting position
     Serial.print((char)(97+i));
@@ -64,8 +66,14 @@ void loop() {
     // if input was a char (clamps strings)
     if(input==0 && buf[0]!='0'){  
       if(buf[0]<97 || buf[0]>97+15){  // 97 is ASCII 'a'
-        Serial.println("Selected motor out of bounds, insert a letter among");
-        Serial.println("a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p.");
+        if(buf[0] == 'q'){
+          Serial.println("Viewing values of motor q (D9)");
+          motor = NONE;
+        }
+        else{
+          Serial.println("Selected motor out of bounds, insert a letter among");
+          Serial.println("a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q.");
+        }
       }
       else{
         motor = buf[0]-97;
@@ -129,7 +137,7 @@ void loop() {
     val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
     myservo.write(val);                  // sets the servo position according to the scaled value
     offpot = val + offset;  // offset updated when switching to potmode
-    if(offpot>=0 && offpot<=180){
+    if(offpot>=0 && offpot<=180 && motor >= 0){
       servos[motor] = offpot;
       pwm.setPWM(motor, 0, angleToPulse(servos[motor]));
     }
@@ -138,7 +146,10 @@ void loop() {
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= interval) {
       Serial.print(" - ");
-      Serial.print(servos[motor]);
+      if((motor == 'q'-97) || (motor == -99))
+        Serial.print(val);
+      else
+        Serial.print(servos[motor]);
       previousMillis = currentMillis;
     }
   }
