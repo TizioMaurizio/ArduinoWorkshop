@@ -212,7 +212,6 @@ if usb_device_list:
         if received_msg:
                     msg = bytes(received_msg).decode('utf8')
         display_received_msg(msg)
-        serial_port.read()
         master = Tk()
         w = Scale(master, from_=0, to=42)
         w.pack()
@@ -222,7 +221,7 @@ if usb_device_list:
           if current != 'c':
               current = 'c'
               serial_port.write(b'c')
-              serial_port.read()
+              time.sleep(0.05)
           else:
               pass
           serial_port.write(bytes(str(a),'utf8'))
@@ -232,7 +231,7 @@ if usb_device_list:
           if current != 'b':
               current = 'b'
               serial_port.write(b'b')
-              serial_port.read()
+              time.sleep(0.05)
           else:
               pass
           serial_port.write(bytes(str(a),'utf8'))
@@ -241,7 +240,7 @@ if usb_device_list:
           if current != 'd':
               current = 'd'
               serial_port.write(b'd')
-              serial_port.read()
+              time.sleep(0.05)
           else:
               pass
           serial_port.write(bytes(str(a),'utf8'))
@@ -250,7 +249,7 @@ if usb_device_list:
           if current != 'e':
               current = 'e'
               serial_port.write(b'e')
-              serial_port.read()
+              time.sleep(0.05)
           else:
               pass
           serial_port.write(bytes(str(a),'utf8'))
@@ -259,33 +258,125 @@ if usb_device_list:
           if current != 'a':
               current = 'a'
               serial_port.write(b'a')
-              serial_port.read()
+              time.sleep(0.05)
           else:
               pass
           serial_port.write(bytes(str(a),'utf8'))
-          #serial_port.read()
-        w = Scale(master, from_=10, to=180, orient=HORIZONTAL, label='MotorA', length=1000, sliderlength = 50, width = 50, command=callbackA)
-        w.pack()
-        w.set(90);
-        w = Scale(master, from_=0, to=180, orient=HORIZONTAL, label='MotorB', length=1000,  sliderlength = 50, width = 50,command=callbackB)
-        w.pack()
-        w.set(180);
-        w = Scale(master, from_=0, to=180, orient=HORIZONTAL, label='MotorC', length=1000,  sliderlength = 50, width = 50,command=callbackC)
-        w.pack()
-        w.set(160);
-        w = Scale(master, from_=90, to=160, orient=HORIZONTAL, label='MotorD', length=500,  sliderlength = 50, width = 50,command=callbackD)
-        w.pack()
-        w = Scale(master, from_=0, to=180, orient=HORIZONTAL, label='MotorE', length=1000,  sliderlength = 50, width = 50,command=callbackE)
-        w.pack()
-        w.set(90)
-        
+        def speedCallback(a):
+          global current
+          if current != 's':
+              current = 's'
+              serial_port.write(b's')
+              time.sleep(0.05)
+          else:
+              pass
+          serial_port.write(bytes(str(a),'utf8'))
+        reset = 1
+        def textCallback():
+            global b
+            phrase=b''
+            for x in range(100):
+             next=serial_port.read()
+             phrase=phrase+next
+             if next==b'\n':
+               break
+            b.configure(text=phrase)
+        def sendBCallback():
+            current='b'
+            serial_port.write(b'c')
+            serial_port.write(b'\0')
+            #time.sleep(1)
+            serial_port.write(b'b')
+        val=120
+        def send120Callback():
+            global val
+            val = val+5
+            callbackA(90)
+            time.sleep(0.05)
+            callbackB(180)
+            time.sleep(0.05)
+            callbackC(150)
+            time.sleep(0.05)
+            callbackD(90)
+            time.sleep(0.05)
+            callbackE(90)
+            time.sleep(0.05)
+            speedCallback(4)
+            time.sleep(0.05)
+            #serial_port.write(bytes(str(val),'utf8'))
+        def resetCallback():
 
-        #b = Button(text="click me", command=callback)
-        #b.pack()
-        
-        serial_port.read()
+       #   global reset
+          
+        #  if reset == 1:
+            # callbackA(90)
+        #  if reset == 2:
+         #    callbackB(180)
+          
+        #  reset = reset + 1
+         # if reset > 2:
+          #    reset = 1
+         # else:
+          #callbackC(160)
+          #  callbackD(90)
+           # callbackE(90)
+            #speedCallback(4):
+          callbackA(90)
+          time.sleep(0.05)
+          callbackB(180)
+          time.sleep(0.05)
+          callbackC(150)
+          time.sleep(0.05)
+          callbackD(90)
+          time.sleep(0.05)
+          callbackE(90)
+          time.sleep(0.05)
+          #speedCallback(4)
+          #time.sleep(0.05)
+          w1.set(90)
+          w2.set(180)
+          w3.set(160)
+          w4.set(90)
+          w5.set(90)
+          #w6.set(4)
+          #serial_port.read()
+        w1 = Scale(master, from_=50, to=180, orient=HORIZONTAL, label='Hand close/open', length=1000, sliderlength = 100, width = 100, command=callbackA)
+        w1.pack()
+        w1.set(90);
+        w2 = Scale(master, from_=0, to=180, orient=HORIZONTAL, label='Wrist', length=1000,  sliderlength = 100, width = 100,command=callbackB)
+        w2.pack()
+        w2.set(180);
+        w3 = Scale(master, from_=0, to=180, orient=HORIZONTAL, label='Elbow', length=1000,  sliderlength = 100, width = 100,command=callbackC)
+        w3.pack()
+        w3.set(160);
+        w4 = Scale(master, from_=90, to=160, orient=HORIZONTAL, label='Shoulder', length=1000,  sliderlength = 100, width = 100,command=callbackD)
+        w4.pack()
+        w5 = Scale(master, from_=0, to=180, orient=HORIZONTAL, label='Rotate', length=1000,  sliderlength = 100, width = 100,command=callbackE)
+        w5.pack()
+        w5.set(90)
+        w6 = Scale(master, from_=1, to=16, orient=HORIZONTAL, label='Speed', length=800,  sliderlength = 100, width = 100,command=speedCallback)
+        w6.pack()
+        w6.set(4)
+    
+        b = Button(text="RESET", height=2, width=5, command=resetCallback)
+        b.pack()
+       # b = Button(text="usb monitor", height=2, width=20, command=textCallback)
+       # b.pack()
+        #c = Button(text="b", height=2, width=20, command=sendBCallback)
+        #c.pack()
+        #c = Button(text="120", height=2, width=20, command=send120Callback)
+        #c.pack()
+ 
         #serial_port.write(b'180')
         mainloop()
+
+
+
+
+
+
+
+
 
 
 
