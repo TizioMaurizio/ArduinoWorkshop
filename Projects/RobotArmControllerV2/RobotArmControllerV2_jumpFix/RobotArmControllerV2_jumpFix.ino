@@ -56,7 +56,8 @@ unsigned long cycleTime = 0;
 
 //Servo variables
 int potentiometers[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}; //from hand to swing, initial value must be invalid
-int correction[16] = {0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; //
+int prevPot[16] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}; //from hand to swing, initial value must be invalid
+int correction[16] = {0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; //
 bool activated[16] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}; //all potentiometers do not control motors on start
 //potentiometer pins: A0 hand, A1 writst, A2 elbow, A3 shoulder, A6 rotate (A4 and A5 used by Servo drive)
 int LINK_THRESHOLD = 5; //soglia di agganciamento 5 gradi
@@ -113,20 +114,32 @@ void loop() {
     if(i == 4) i = 6;//l'ultimo pin analog è dopo la servo drive  ##################HARDCODED##################
     //if(i==2){//i != 6 && i!= 0 && i!= 1
       val = analogRead(i);            // reads the value of the potentiometer (value between 0 and 1023)
+       if(i == 6) i = 4;
       val = map(val, 0+171, 1023-170, 0, 180) + correction[i];     // scale it to use it with the servo (value between 0 and 180)
       potentiometers[i] = val + correction[i];
       if(val>=0 && val<=180){
           if(activated[i] == false){
-            if(val >= servos[i] - LINK_THRESHOLD && val <= servos[i] + LINK_THRESHOLD) //range di agganciamento
+            if(val >= servos[i] - LINK_THRESHOLD && val <= servos[i] + LINK_THRESHOLD){ //range di agganciamento
               activated[i] = true; //attiva il potenziometro i
+              if(prevPot[i] < 0){
+                prevPot[i] = targetPoses[i];
+              }
+            }
           }
-          if(activated[i] == true){
-            if(i == 6) i = 4;
-            targetPoses[i] = val; //==potentiometers[i]
-          }
-       }
+            if(activated[i] == true || (prevPot[i] > 0 && abs(prevPot[i] - potentiometers[i] <= 1))){ //se non ha saltato assegna, altrimenti disattiva
+              activated[i] = true;
+              targetPoses[i] = potentiometers[i]; //==potentiometers[i]
+              prevPot[i] = potentiometers[i];
+            }
+            else{
+              activated[i] = false;
+            }
+          
+        }
     //}
     //Serial.print(" p"); Serial.print(i); Serial.print(": ");  Serial.print(val); Serial.print(" "); Serial.print(activated[i]); Serial.print("  |"); if(i==4 || i==6) Serial.println();
+    if(i == 3)
+    Serial.println(potentiometers[i]);
   }
   
   //update motor pose every INTERVAL milliseconds
@@ -146,7 +159,7 @@ void loop() {
   /*cycleTime = currentMillis - previousCycle;
   if(currentMillis - previousCycle < INTERVAL)
     delay(INTERVAL - cycleTime);*/
-  delay(1);
+  delay(10);
   previousCycle = currentMillis;
 }
 
