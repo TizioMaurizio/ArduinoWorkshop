@@ -62,15 +62,15 @@ int deltaMove;
 bool speedSet = false;
 
 void setup() {
-  myservo.attach(9);  // attaches the single servo on pin 9 to the servo object
-  val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
-  val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
-  myservo.write(encAngle);
-  pinMode(SW, INPUT);
-  digitalWrite(SW, HIGH);
-  pinMode(CLK, INPUT);
-  pinMode(DT, INPUT);
-  attachInterrupt(interrupt0, ClockChanged, CHANGE);
+  //myservo.attach(9);  // attaches the single servo on pin 9 to the servo object
+  //val = analogRead(potpin);            // reads the value of the potentiometer (value between 0 and 1023)
+  //val = map(val, 0, 1023, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
+  //myservo.write(encAngle);
+  //pinMode(SW, INPUT);
+  //digitalWrite(SW, HIGH);
+  //pinMode(CLK, INPUT);
+  //pinMode(DT, INPUT);
+  //attachInterrupt(interrupt0, ClockChanged, CHANGE);
   pwm.begin();
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
   Serial.begin(9600);

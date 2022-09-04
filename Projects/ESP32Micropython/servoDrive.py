@@ -65,6 +65,8 @@ except:
                     servos[i] = _servo
                     targetPoses[i] = _pose
             previousMillis = currentMillis
+            #camera.capture() goes here
+
     drive.alloff()
     STOP = 2
     print('servoDrive.move() end\n')

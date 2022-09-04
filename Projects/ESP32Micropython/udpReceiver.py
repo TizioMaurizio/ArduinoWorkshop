@@ -10,7 +10,7 @@ port = 5555
 RECTIME = 20
 RECSIZE = 256   #check this if jsons don't work
 STOP = 0
-RECEIVER = "192.168.1.8"
+RECEIVER = socket.getaddrinfo('DESKTOP-UEIIPLJ', 80)[0][-1][0]
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((host, port))
@@ -27,7 +27,6 @@ def getValue():
                 message, address = s.recvfrom(RECSIZE)
                 try:
                     received = message.decode("utf-8", "ignore")  # transform payload into str
-                    print(received)
                     received = ujson.loads(received)
                     if isinstance(received[0], int):
                         servoDrive.jsonPoses = received
@@ -36,7 +35,10 @@ def getValue():
                     if received == 'positions':
                         print('Sending saved positions')
                         f = open("positions_file.py", "r")
-                        s.sendto(f.read().encode(), (RECEIVER, 5555))
+                        file_content = f.read()
+                        #print("sending",file_content)
+                        file_content = file_content.encode()
+                        s.sendto(file_content, (RECEIVER, 5555))
                         f.close()
                     if received[0] == 'save':
                         f = open("positions_file.py", "r")
@@ -78,3 +80,4 @@ def send(toSend):
     s.sendto(toSend.encode(), (RECEIVER, 5555))
 
 _thread.start_new_thread(getValue, ())
+print("Receiver is:", RECEIVER)
