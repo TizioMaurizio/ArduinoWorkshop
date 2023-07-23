@@ -7,13 +7,14 @@ def walk():
     Biped_GUI_V1.savedPoses = eval(s)
     f.close()
     Biped_GUI_V1.playback()
-
+    
+import Biped_GUI_V1
 import threading
 th = threading.Thread(target=walk)
 th.setDaemon(True)
 th.start()
 
-import Biped_GUI_V1
+
    
 
  

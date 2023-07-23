@@ -1,0 +1,132 @@
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+
+Adafruit_MPU6050 mpu;
+
+int speed[3] = {0,0,0};
+double orientation[3] = {0,0,0};
+double deltaOrientation[3] = {0,0,0};
+double acceleration[3] = {0,0,0};
+
+void setup(void) {
+	Serial.begin(115200);
+
+	// Try to initialize!
+	if (!mpu.begin()) {
+		Serial.println("Failed to find MPU6050 chip");
+		while (1) {
+		  delay(10);
+		}
+	}
+	Serial.println("MPU6050 Found!");
+
+	// set accelerometer range to +-8G
+	mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+
+	// set gyro range to +- 500 deg/s
+	mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+
+	// set filter bandwidth to 21 Hz
+	mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+
+	delay(100);
+	sensors_event_t a, g, temp;
+	mpu.getEvent(&a, &g, &temp);
+  
+  //set orientation to values of g.gyro
+  deltaOrientation[0] = g.gyro.x;
+  deltaOrientation[1] = g.gyro.y;
+  deltaOrientation[2] = g.gyro.z;
+
+  //set acceleration to values of a.acceleration
+  acceleration[0] = a.acceleration.x;
+  acceleration[1] = a.acceleration.y;
+  acceleration[2] = a.acceleration.z;
+
+  //print acceleration and deltaOrientation
+  Serial.print("Orientation: ");
+  Serial.print(deltaOrientation[0]+0.04);
+  Serial.print("  ");
+  Serial.print(deltaOrientation[1]+0.02);
+  Serial.print("  ");
+  Serial.println(deltaOrientation[2]);
+  Serial.print("  Acceleration: ");
+  Serial.print(acceleration[0]);
+  Serial.print("  ");
+  Serial.print(acceleration[1]);
+  Serial.print("  ");
+  Serial.println(acceleration[2]);
+}
+
+int prevTime = 0;
+//array of x y z speed
+
+void loop() {
+  
+  //get deltaTime
+  int currentTime = millis();
+  int deltaTime = currentTime - prevTime;
+  prevTime = currentTime;
+	/* Get new sensor events with the readings */
+	sensors_event_t a, g, temp;
+	mpu.getEvent(&a, &g, &temp);
+
+  //set orientation to values of g.gyro
+  deltaOrientation[0] = g.gyro.x;
+  deltaOrientation[1] = g.gyro.y;
+  deltaOrientation[2] = g.gyro.z;
+
+  //set acceleration to values of a.acceleration
+  acceleration[0] = a.acceleration.x;
+  acceleration[1] = a.acceleration.y;
+  acceleration[2] = a.acceleration.z;
+  
+  //calculate speed
+  speed[0] += acceleration[0] * deltaTime;
+  speed[1] += acceleration[1] * deltaTime;
+  speed[2] += acceleration[2] * deltaTime;
+
+  //deltaOrientationClamp array
+  double deltaOrientationClamp[3] = {0,0,0};
+  //deltaOrientation up to 2 decimals
+  deltaOrientationClamp[0] = (int)(deltaOrientation[0]*10)/10.0;
+  deltaOrientationClamp[1] = (int)(deltaOrientation[1]*10)/10.0;
+  deltaOrientationClamp[2] = (int)(deltaOrientation[2]*10)/10.0;
+
+  orientation[0] += deltaOrientationClamp[0] * deltaTime;
+  orientation[1] += deltaOrientationClamp[1] * deltaTime;
+  orientation[2] += deltaOrientationClamp[2] * deltaTime;
+
+  Serial.print("deltaOrientation: ");
+  Serial.print(orientation[0]);
+  Serial.print("  ");
+  Serial.print(orientation[0]);
+  Serial.print("  ");
+  Serial.print(orientation[0]);
+  Serial.print("    Acceleration: ");
+  Serial.print(acceleration[0]);
+  Serial.print("  ");
+  Serial.print(acceleration[1]);
+  Serial.print("  ");
+  Serial.println(acceleration[2]);
+
+  //print speed
+  /*
+  Serial.print("  | ");
+  Serial.print(speed[0]);
+  Serial.print("  | ");
+  Serial.print(speed[1]);
+  Serial.print("  | ");
+  Serial.println(speed[2]);
+*/
+	/* Print out the values
+	Serial.print(a.acceleration.x);
+	Serial.print("|");
+	Serial.print(a.acceleration.y);
+	Serial.print("|");
+	Serial.print(a.acceleration.z);
+	Serial.println("\\"); */
+	delay(10);
+}

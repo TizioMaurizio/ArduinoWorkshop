@@ -67,11 +67,11 @@ void loop() {
       fifoCount -= packetSize;
 
       //SendQuaternion();
-      SendEuler();
+      //SendEuler();
       delay(20);
       //SendYawPitchRoll();
       //SendRealAccel();
-      //SendWorldAccel();
+      SendWorldAccel();
     }
 }
 
@@ -123,7 +123,8 @@ void SendWorldAccel() {
   mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
   mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
   //Serial.print("a/");
-  Serial.print(aaWorld.x); Serial.print("/");
-  Serial.print(aaWorld.y); Serial.print("/");
-  Serial.println(aaWorld.z);
+  Serial.print(aaWorld.x/500); Serial.print(",");
+  Serial.print(aaWorld.y/500); Serial.print(",");
+  Serial.print((aaWorld.z+500)/500);
+  Serial.print("a");
 }

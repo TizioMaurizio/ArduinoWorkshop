@@ -28,7 +28,7 @@ jointSliders = []
 savedButtons = []
 
 try:
-    arduino = serial.Serial("COM4", 115200, timeout=0)
+    arduino = serial.Serial("COM3", 115200, timeout=0)
 except:
     print('Arduino USB not found.')
 
