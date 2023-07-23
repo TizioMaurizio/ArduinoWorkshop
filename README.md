@@ -1,6 +1,6 @@
 # ArduinoWorkshop
 
-Welcome to the Arduino Workshop, here you can view and share Arduino source codes and prohects which will be assembled tested on TizioMaurizio's Elegoo Uno R3 Arduino board.
+Welcome to the Arduino Workshop, here you can view and share Arduino source codes and projects which will be assembled tested on TizioMaurizio's Elegoo Uno R3 Arduino board.
 
 //////////////////////////////README WORK IN PROGRESS//////////////////////////////
 
