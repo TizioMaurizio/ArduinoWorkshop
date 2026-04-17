@@ -49,4 +49,4 @@ docs/                     — wiring diagrams, READMEs, release notes
 - Use `UPPER_SNAKE_CASE` for constants and pin definitions.
 - Prefer `constexpr` or `const` over `#define` where the toolchain supports it.
 - Group includes: system → library → project-local.
-- One logical change per commit. Commit messages start with the component name: `[wifi] fix reconnect timeout`.
+- One logical change per commit. Commit messages follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/): `<type>(<scope>): <description>` (e.g., `fix(wifi): resolve reconnect timeout`).

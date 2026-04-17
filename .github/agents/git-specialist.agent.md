@@ -96,7 +96,7 @@ Work through git operations carefully:
 3. For reviews: read every changed file, understand the intent, then dispatch to domain specialists.
 4. For history operations: verify whether commits are published (pushed) before suggesting rebase or amend. Never rewrite published history without explicit user approval.
 5. For merges: check if the target branch has diverged. Prefer rebase for clean linear history on feature branches.
-6. Consider the repo's commit message convention: `[component] imperative description`.
+6. Consider the repo's commit message convention: Conventional Commits `<type>(<scope>): <description>`.
 
 ## Output Protocol — Report Like a Scientist
 
@@ -121,7 +121,7 @@ Ordered list of actions. Identify blockers or open questions that need user inpu
 
 - **Never force-push, rewrite published history, or delete remote branches without explicit user approval.**
 - **Never auto-commit.** Always show the user what will be committed and get confirmation.
-- Commit messages must follow the repo convention: `[component] imperative verb description` (e.g., `[wifi] fix reconnect timeout`).
+- Commit messages must follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/): `<type>(<scope>): <description>` (e.g., `fix(wifi): resolve reconnect timeout`, `feat(camera): add MJPEG streaming`). Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - One logical change per commit. If a diff contains unrelated changes, advise splitting.
 - Do not stage files that are unrelated to the current task (dotfiles, IDE config, build artifacts).
 - Always check `.gitignore` before staging — flag files that should be ignored but aren't.
