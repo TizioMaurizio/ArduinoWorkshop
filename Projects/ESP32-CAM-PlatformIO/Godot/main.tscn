@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://cltdhuxanx6t2"]
+
+[ext_resource type="Script" uid="uid://cmqnyrru04knd" path="res://vr_main.gd" id="1_vrmain"]
+[ext_resource type="Script" uid="uid://cll0jy8cxd7tg" path="res://camera_stream.gd" id="2_camstream"]
+[ext_resource type="Script" uid="uid://b0axfuolcmtgg" path="res://servo_controller.gd" id="3_servo"]
+[ext_resource type="Shader" uid="uid://dlpalk86c7pk5" path="res://fullscreen_stream.gdshader" id="4_shader"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0.03, 0.03, 0.05, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.3
+
+[sub_resource type="QuadMesh" id="QuadMesh_1"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMat_1"]
+render_priority = 0
+shader = ExtResource("4_shader")
+
+[node name="Main" type="Node3D" unique_id=91317648]
+script = ExtResource("1_vrmain")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=730733190]
+environment = SubResource("Environment_1")
+
+[node name="XROrigin3D" type="XROrigin3D" parent="." unique_id=558092730]
+
+[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=2066968266]
+
+[node name="Screen" type="MeshInstance3D" parent="XROrigin3D/XRCamera3D" unique_id=798387978]
+mesh = SubResource("QuadMesh_1")
+surface_material_override/0 = SubResource("ShaderMat_1")
+script = ExtResource("2_camstream")
+
+[node name="LeftHand" type="XRController3D" parent="XROrigin3D" unique_id=1979745678]
+tracker = &"left_hand"
+
+[node name="RightHand" type="XRController3D" parent="XROrigin3D" unique_id=1891383757]
+tracker = &"right_hand"
+
+[node name="ServoController" type="Node" parent="." unique_id=378602477]
+script = ExtResource("3_servo")
+ch3_offset_deg = 40
