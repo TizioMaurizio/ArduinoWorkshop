@@ -1,0 +1,17 @@
+# PlatformIO build output
+.pio/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# IDE / editor
+.vscode/
+
+# Backup files
+*.bak
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store
