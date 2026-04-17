@@ -33,6 +33,24 @@ You own all sensor, display, actuator, and bus driver work:
 - Pin mapping and board abstraction layer
 - Timing-sensitive bit-banging when hardware peripherals are unavailable
 
+## Team — Call Any Specialist
+
+You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@firmware-architect** | Architecture, task decomposition, constraints | Plan review, multi-subsystem coordination, acceptance criteria |
+| **@esp-integrator** | ESP32/ESP8266 platform, Wi-Fi, BLE, MQTT, OTA, NVS | ESP platform config, SDK issues, partition tables, watchdogs |
+| **@driver-implementer** | Sensors, displays, I2C/SPI/UART/OneWire | Peripheral drivers, pin maps, bus protocols, timing-critical code |
+| **@network-specialist** | HTTP, TCP/UDP, WebSocket, mDNS, TLS, streaming | Protocol design, latency, firewall/NAT, REST APIs, network debugging |
+| **@godot-specialist** | Godot 4.x, GDScript, XR/VR, MCU↔Godot bridge | Godot scenes, scripts, stream consumers, VR rendering |
+| **@test-harness** | Unit tests, CI, mocks, regressions | Test coverage, host/device tests, build matrix, validation |
+| **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
+| **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
+| **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+
+When your task touches another agent's domain, call them rather than guessing. Prefer sequential hand-offs with clear context over parallel work on the same files.
+
 ## Thinking Mode
 
 Work through driver problems methodically:

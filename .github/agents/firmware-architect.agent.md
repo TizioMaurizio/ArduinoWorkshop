@@ -20,6 +20,24 @@ You have terminal access via `runCommands`. Use these repo scripts from the `scr
 | `scripts/size-report.sh` | Flash/RAM usage table | Assess memory impact of proposed changes |
 | `scripts/hw-smoke-test.sh` | Parse serial [PASS]/[FAIL] | Validate on-device tests after implementation |
 
+## Team — Call Any Specialist
+
+You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@firmware-architect** | Architecture, task decomposition, constraints | Plan review, multi-subsystem coordination, acceptance criteria |
+| **@esp-integrator** | ESP32/ESP8266 platform, Wi-Fi, BLE, MQTT, OTA, NVS | ESP platform config, SDK issues, partition tables, watchdogs |
+| **@driver-implementer** | Sensors, displays, I2C/SPI/UART/OneWire | Peripheral drivers, pin maps, bus protocols, timing-critical code |
+| **@network-specialist** | HTTP, TCP/UDP, WebSocket, mDNS, TLS, streaming | Protocol design, latency, firewall/NAT, REST APIs, network debugging |
+| **@godot-specialist** | Godot 4.x, GDScript, XR/VR, MCU↔Godot bridge | Godot scenes, scripts, stream consumers, VR rendering |
+| **@test-harness** | Unit tests, CI, mocks, regressions | Test coverage, host/device tests, build matrix, validation |
+| **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
+| **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
+| **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+
+When your task touches another agent's domain, call them rather than guessing. Prefer sequential hand-offs with clear context over parallel work on the same files.
+
 ## Thinking Mode
 
 Reason step-by-step through the problem internally:
@@ -31,6 +49,8 @@ Reason step-by-step through the problem internally:
 6. Decide which specialist agent(s) should handle implementation:
    - Connectivity (Wi-Fi, BLE, MQTT, OTA, sleep) → **@esp-integrator**
    - Peripheral drivers (sensors, displays, I2C/SPI/UART) → **@driver-implementer**
+   - Network protocols (HTTP, TCP/UDP, streaming, mDNS, TLS) → **@network-specialist**
+   - Godot engine, VR, MCU↔Godot data bridge → **@godot-specialist**
    - Test coverage, CI, regressions → **@test-harness**
    - Power, sleep, size optimization → **@power-optimizer**
    - Documentation, release, changelogs → **@docs-release**
