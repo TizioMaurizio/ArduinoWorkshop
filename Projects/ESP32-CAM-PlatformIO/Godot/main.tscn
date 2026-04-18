@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://cll0jy8cxd7tg" path="res://camera_stream.gd" id="2_camstream"]
 [ext_resource type="Script" uid="uid://b0axfuolcmtgg" path="res://servo_controller.gd" id="3_servo"]
 [ext_resource type="Shader" uid="uid://dlpalk86c7pk5" path="res://fullscreen_stream.gdshader" id="4_shader"]
+[ext_resource type="Script" path="res://orientation_gizmo.gd" id="5_gizmo"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -13,6 +14,9 @@ ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 0.3
 
 [sub_resource type="QuadMesh" id="QuadMesh_1"]
+size = Vector2(2, 2)
+subdivide_width = 1
+subdivide_depth = 1
 
 [sub_resource type="ShaderMaterial" id="ShaderMat_1"]
 render_priority = 0
@@ -32,6 +36,9 @@ environment = SubResource("Environment_1")
 mesh = SubResource("QuadMesh_1")
 surface_material_override/0 = SubResource("ShaderMat_1")
 script = ExtResource("2_camstream")
+
+[node name="OrientationGizmo" type="Node3D" parent="XROrigin3D/XRCamera3D"]
+script = ExtResource("5_gizmo")
 
 [node name="LeftHand" type="XRController3D" parent="XROrigin3D" unique_id=1979745678]
 tracker = &"left_hand"
