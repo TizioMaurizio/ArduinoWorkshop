@@ -1,13 +1,14 @@
 extends Node
-## Reads XRCamera3D head rotation and sends servo angles to Arduino
-## via a local UDP-to-serial bridge.
+## Reads XRCamera3D head rotation and sends servo angles to the ESP32-CAM
+## via UDP. The ESP32 forwards them over Serial2 to the Arduino.
 ##
-## Protocol: UDP packet to localhost:BRIDGE_PORT containing "<ch>,<angle>\n"
+## Protocol: UDP packet to ESP32_IP:UDP_PORT containing "<ch>,<angle>\n"
 ## Channel 0 = Y rotation (yaw), Channel 3 = X rotation (pitch)
 
 # --- Configurable parameters --------------------------------------------------
 
-@export var bridge_host: String = "127.0.0.1"
+## Leave empty to auto-discover from the camera stream node.
+@export var bridge_host: String = ""
 @export var bridge_port: int = 9685
 
 ## Head yaw limits (degrees). Full left → SERVO_MIN, full right → SERVO_MAX.
@@ -51,24 +52,41 @@ func _ready() -> void:
 		printerr("[Servo] XRCamera3D not found — is XROrigin3D in the scene?")
 		return
 
-	var err: int = _udp.connect_to_host(bridge_host, bridge_port)
-	if err != OK:
-		printerr("[Servo] UDP connect failed: %d" % err)
-		return
-
-	_connected = true
-	print("[Servo] Sending to bridge at %s:%d  (CH%d=yaw, CH%d=pitch)" % [
-		bridge_host, bridge_port, CH_YAW, CH_PITCH
-	])
-
 	# Reset calibration when the runtime recenters the pose
 	var vr_main: Node = get_node_or_null("../")
 	if vr_main and vr_main.has_signal("pose_recentered"):
 		vr_main.pose_recentered.connect(_on_pose_recentered)
 
+	# If no host set, wait for camera_stream to discover it
+	if bridge_host == "":
+		print("[Servo] Waiting for camera stream to discover ESP32 IP...")
+	else:
+		_connect_udp()
+
+
+func _connect_udp() -> void:
+	var err: int = _udp.connect_to_host(bridge_host, bridge_port)
+	if err != OK:
+		printerr("[Servo] UDP connect failed: %d" % err)
+		return
+	_connected = true
+	print("[Servo] Sending to bridge at %s:%d  (CH%d=yaw, CH%d=pitch)" % [
+		bridge_host, bridge_port, CH_YAW, CH_PITCH
+	])
+
 
 func _process(delta: float) -> void:
-	if not _connected or _camera == null:
+	if _camera == null:
+		return
+
+	# Auto-discover: pick up the IP from camera_stream once it finds one
+	if not _connected:
+		var screen: Node = get_node_or_null("../XROrigin3D/XRCamera3D/Screen")
+		if screen and screen.get("_connected") == true:
+			var ip: String = screen.esp_ip
+			if ip != "":
+				bridge_host = ip
+				_connect_udp()
 		return
 
 	_send_timer += delta
