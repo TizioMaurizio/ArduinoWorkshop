@@ -3,7 +3,7 @@ extends Node
 ## via a local UDP-to-serial bridge.
 ##
 ## Protocol: UDP packet to localhost:BRIDGE_PORT containing "<ch>,<angle>\n"
-## Channel 0 = Y rotation (yaw), Channel 3 = Z rotation (roll)
+## Channel 0 = Y rotation (yaw), Channel 3 = X rotation (pitch)
 
 # --- Configurable parameters --------------------------------------------------
 
@@ -14,9 +14,9 @@ extends Node
 @export var yaw_min_deg: float = -90.0
 @export var yaw_max_deg: float = 90.0
 
-## Head roll limits (degrees). Full left tilt → SERVO_MIN, full right → SERVO_MAX.
-@export var roll_min_deg: float = -45.0
-@export var roll_max_deg: float = 45.0
+## Head pitch limits (degrees). Look up → SERVO_MIN, look down → SERVO_MAX.
+@export var pitch_min_deg: float = -45.0
+@export var pitch_max_deg: float = 45.0
 
 ## Servo output range
 @export var servo_min_angle: int = 0
@@ -33,15 +33,17 @@ extends Node
 
 # --- Channel assignments -----------------------------------------------------
 const CH_YAW: int = 0
-const CH_ROLL: int = 3
+const CH_PITCH: int = 3
 
 # --- Internal state -----------------------------------------------------------
 var _udp: PacketPeerUDP = PacketPeerUDP.new()
 var _camera: XRCamera3D = null
 var _send_timer: float = 0.0
 var _last_yaw_angle: int = -1
-var _last_roll_angle: int = -1
+var _last_pitch_angle: int = -1
 var _connected: bool = false
+var _calibrated: bool = false
+var _initial_quat: Quaternion = Quaternion.IDENTITY
 
 func _ready() -> void:
 	_camera = get_node_or_null("../XROrigin3D/XRCamera3D")
@@ -55,9 +57,14 @@ func _ready() -> void:
 		return
 
 	_connected = true
-	print("[Servo] Sending to bridge at %s:%d  (CH%d=yaw, CH%d=roll)" % [
-		bridge_host, bridge_port, CH_YAW, CH_ROLL
+	print("[Servo] Sending to bridge at %s:%d  (CH%d=yaw, CH%d=pitch)" % [
+		bridge_host, bridge_port, CH_YAW, CH_PITCH
 	])
+
+	# Reset calibration when the runtime recenters the pose
+	var vr_main: Node = get_node_or_null("../")
+	if vr_main and vr_main.has_signal("pose_recentered"):
+		vr_main.pose_recentered.connect(_on_pose_recentered)
 
 
 func _process(delta: float) -> void:
@@ -70,26 +77,41 @@ func _process(delta: float) -> void:
 		return
 	_send_timer -= interval
 
-	# Euler rotation in radians (Godot uses YXZ order by default)
-	var rot: Vector3 = _camera.global_rotation
-	var yaw_deg: float = rad_to_deg(rot.y)
-	var roll_deg: float = rad_to_deg(rot.z)
+	# Quaternion-based angle extraction (gimbal-lock-free).
+	# Euler decomposition degenerates at pitch ≈ ±90°, causing yaw/roll jumps.
+	var quat: Quaternion = _camera.global_transform.basis.get_rotation_quaternion()
+
+	# Capture the visor orientation at startup as the zero reference
+	if not _calibrated:
+		_initial_quat = quat
+		_calibrated = true
+		print("[Servo] Initial head quaternion captured")
+
+	# Relative rotation from initial pose — purely in quaternion space
+	var rel_quat: Quaternion = _initial_quat.inverse() * quat
+	var rel_basis: Basis = Basis(rel_quat)
+
+	# Extract yaw and pitch from the relative rotation basis.
+	# Yaw  = atan2(basis.z.x, basis.z.z) — rotation around Y.
+	# Pitch = -asin(basis.z.y)            — rotation around X (clamped to avoid NaN).
+	var yaw_deg: float = rad_to_deg(atan2(rel_basis.z.x, rel_basis.z.z))
+	var pitch_deg: float = rad_to_deg(-asin(clampf(rel_basis.z.y, -1.0, 1.0)))
 
 	# Clamp and map to servo range
 	var yaw_servo: int = _map_clamp(yaw_deg, yaw_min_deg, yaw_max_deg,
 									servo_min_angle, servo_max_angle)
-	var roll_servo: int = _map_clamp(roll_deg, roll_min_deg, roll_max_deg,
-									 servo_min_angle, servo_max_angle)
-	roll_servo = clampi(roll_servo + ch3_offset_deg, servo_min_angle, servo_max_angle)
+	var pitch_servo: int = _map_clamp(pitch_deg, pitch_min_deg, pitch_max_deg,
+									  servo_min_angle, servo_max_angle)
+	pitch_servo = clampi(pitch_servo + ch3_offset_deg, servo_min_angle, servo_max_angle)
 
 	# Only send if angle changed beyond deadband
 	if absi(yaw_servo - _last_yaw_angle) >= int(deadband_deg):
 		_send_angle(CH_YAW, yaw_servo)
 		_last_yaw_angle = yaw_servo
 
-	if absi(roll_servo - _last_roll_angle) >= int(deadband_deg):
-		_send_angle(CH_ROLL, roll_servo)
-		_last_roll_angle = roll_servo
+	if absi(pitch_servo - _last_pitch_angle) >= int(deadband_deg):
+		_send_angle(CH_PITCH, pitch_servo)
+		_last_pitch_angle = pitch_servo
 
 
 func _send_angle(channel: int, angle: int) -> void:
@@ -103,3 +125,8 @@ func _map_clamp(value: float, in_min: float, in_max: float,
 	var clamped: float = clampf(value, in_min, in_max)
 	var t: float = (clamped - in_min) / (in_max - in_min)
 	return int(roundf(lerpf(float(out_min), float(out_max), t)))
+
+
+func _on_pose_recentered() -> void:
+	_calibrated = false
+	print("[Servo] Pose recentered — will recapture initial angle next frame")
