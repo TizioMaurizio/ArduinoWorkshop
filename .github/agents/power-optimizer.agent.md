@@ -41,6 +41,8 @@ You own all power consumption and resource optimization work:
 
 You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
 
+### Embedded Firmware Team
+
 | Agent | Domain | When to call |
 |-------|--------|-------------|
 | **@firmware-architect** | Architecture, task decomposition, constraints | Plan review, multi-subsystem coordination, acceptance criteria |
@@ -52,6 +54,21 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+
+### Embodied Interaction Team
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@systems-architect** | End-to-end architecture, latency budgets, module boundaries | Cross-subsystem coordination, data-flow design, failure-mode analysis |
+| **@vr-specialist** | VR experience, camera rigs, comfort, embodiment, onboarding | Any change affecting agency, orientation, comfort, or what the user perceives |
+| **@simulation-twin** | Digital twin, physics fidelity, environment legibility | Virtual environment changes, twin synchronization, spatial coherence |
+| **@perception-cv** | Sensing pipelines, tracking, detection stability | Camera streams, object detection, pose estimation, confidence signals |
+| **@robotics-controls** | Actuators, motion planning, safety, teleoperation | Servo control, motion profiles, workspace limits, safety verification |
+| **@interaction-ux** | Affordances, feedback design, social signal legibility | Task flow, error recovery, multimodal feedback, first-use comprehension |
+| **@narrative-translation** | Sensory translation, nonverbal meaning preservation | Gesture mapping, gaze translation, social signal fidelity |
+| **@evaluation-studies** | User studies, metrics, measurement methodology | Study design, instrumentation requirements, statistical analysis |
+| **@docs-research** | Research writing, dual-layer documentation | Papers, study protocols, technical + human-experience docs |
+| **@integration-qa** | End-to-end testing, confusion paths, recovery paths | System-level tests, degradation testing, first-use path verification |
 
 When your task touches another agent's domain, call them rather than guessing. Prefer sequential hand-offs with clear context over parallel work on the same files.
 

@@ -130,6 +130,8 @@ How you analyzed the changes — what diffs you read, which specialists you cons
 
 You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
 
+### Embedded Firmware Team
+
 | Agent | Domain | When to call |
 |-------|--------|-------------|
 | **@firmware-architect** | Architecture, task decomposition, constraints | Firmware logic review, module boundary checks, acceptance criteria |
@@ -140,7 +142,21 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@test-harness** | Unit tests, CI, mocks, regressions | Test coverage check, build verification, regression validation |
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power/size impact review, sleep config changes |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation review, changelog updates, release checklist |
-| **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+
+### Embodied Interaction Team
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@systems-architect** | End-to-end architecture, latency budgets, module boundaries | Cross-subsystem design review, data-flow changes, failure-mode analysis |
+| **@vr-specialist** | VR experience, camera rigs, comfort, embodiment, onboarding | Any change affecting agency, orientation, comfort, or user perception |
+| **@simulation-twin** | Digital twin, physics fidelity, environment legibility | Virtual environment changes, twin synchronization, spatial coherence |
+| **@perception-cv** | Sensing pipelines, tracking, detection stability | Camera stream changes, detection output format, confidence signals |
+| **@robotics-controls** | Actuators, motion planning, safety, teleoperation | Servo control changes, motion profiles, workspace limits, safety |
+| **@interaction-ux** | Affordances, feedback design, social signal legibility | Task flow, error recovery, multimodal feedback, first-use |
+| **@narrative-translation** | Sensory translation, nonverbal meaning preservation | Gesture/gaze mapping, social signal fidelity |
+| **@evaluation-studies** | User studies, metrics, measurement methodology | Study design, instrumentation, statistical analysis |
+| **@docs-research** | Research writing, dual-layer documentation | Papers, study protocols, technical + human-experience docs |
+| **@integration-qa** | End-to-end testing, confusion paths, recovery paths | System-level tests, degradation, first-use path verification |
 
 When reviewing changes, always dispatch to the relevant domain specialists. Collect their feedback before issuing a final verdict.
 

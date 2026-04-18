@@ -56,6 +56,72 @@ For every perception change, answer:
 4. Pipeline latency is measured and within the architecture's budget.
 5. The VR Specialist has confirmed the perception output doesn't cause embodiment artifacts.
 
+## Team — Call Any Specialist
+
+You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
+
+### Embodied Interaction Team
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@systems-architect** | End-to-end architecture, latency budgets, module boundaries | Cross-subsystem coordination, data-flow design, failure-mode analysis |
+| **@vr-specialist** | VR experience, camera rigs, comfort, embodiment, onboarding | Any change affecting agency, orientation, comfort, or what the user perceives |
+| **@simulation-twin** | Digital twin, physics fidelity, environment legibility | Virtual environment changes, twin synchronization, spatial coherence |
+| **@perception-cv** | Sensing pipelines, tracking, detection stability | Camera streams, object detection, pose estimation, confidence signals |
+| **@robotics-controls** | Actuators, motion planning, safety, teleoperation | Servo control, motion profiles, workspace limits, safety verification |
+| **@interaction-ux** | Affordances, feedback design, social signal legibility | Task flow, error recovery, multimodal feedback, first-use comprehension |
+| **@narrative-translation** | Sensory translation, nonverbal meaning preservation | Gesture mapping, gaze translation, social signal fidelity |
+| **@evaluation-studies** | User studies, metrics, measurement methodology | Study design, instrumentation requirements, statistical analysis |
+| **@docs-research** | Research writing, dual-layer documentation | Papers, study protocols, technical + human-experience docs |
+| **@integration-qa** | End-to-end testing, confusion paths, recovery paths | System-level tests, degradation testing, first-use path verification |
+
+### Embedded Firmware Team
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@firmware-architect** | Firmware architecture, task decomposition, constraints | Firmware planning, module boundaries, compile verification |
+| **@esp-integrator** | ESP32/ESP8266 platform, Wi-Fi, BLE, MQTT, OTA, NVS | ESP platform config, SDK issues, partition tables, watchdogs |
+| **@driver-implementer** | Sensors, displays, I2C/SPI/UART/OneWire | Peripheral drivers, pin maps, bus protocols, timing-critical code |
+| **@network-specialist** | HTTP, TCP/UDP, WebSocket, mDNS, TLS, streaming | Protocol design, latency, firewall/NAT, REST APIs, network debugging |
+| **@godot-specialist** | Godot 4.x, GDScript, XR/VR, MCU↔Godot bridge | Godot scenes, scripts, stream consumers, VR rendering |
+| **@test-harness** | Unit tests, CI, mocks, regressions | Test coverage, host/device tests, build matrix, validation |
+| **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
+| **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
+| **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+
+## Team — Call Any Specialist
+
+You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
+
+### Embodied Interaction Team
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@systems-architect** | End-to-end architecture, latency budgets, module boundaries | Cross-subsystem coordination, data-flow design, failure-mode analysis |
+| **@vr-specialist** | VR experience, camera rigs, comfort, embodiment, onboarding | Any change affecting agency, orientation, comfort, or what the user perceives |
+| **@simulation-twin** | Digital twin, physics fidelity, environment legibility | Virtual environment changes, twin synchronization, spatial coherence |
+| **@perception-cv** | Sensing pipelines, tracking, detection stability | Camera streams, object detection, pose estimation, confidence signals |
+| **@robotics-controls** | Actuators, motion planning, safety, teleoperation | Servo control, motion profiles, workspace limits, safety verification |
+| **@interaction-ux** | Affordances, feedback design, social signal legibility | Task flow, error recovery, multimodal feedback, first-use comprehension |
+| **@narrative-translation** | Sensory translation, nonverbal meaning preservation | Gesture mapping, gaze translation, social signal fidelity |
+| **@evaluation-studies** | User studies, metrics, measurement methodology | Study design, instrumentation requirements, statistical analysis |
+| **@docs-research** | Research writing, dual-layer documentation | Papers, study protocols, technical + human-experience docs |
+| **@integration-qa** | End-to-end testing, confusion paths, recovery paths | System-level tests, degradation testing, first-use path verification |
+
+### Embedded Firmware Team
+
+| Agent | Domain | When to call |
+|-------|--------|-------------|
+| **@firmware-architect** | Firmware architecture, task decomposition, constraints | Firmware planning, module boundaries, compile verification |
+| **@esp-integrator** | ESP32/ESP8266 platform, Wi-Fi, BLE, MQTT, OTA, NVS | ESP platform config, SDK issues, partition tables, watchdogs |
+| **@driver-implementer** | Sensors, displays, I2C/SPI/UART/OneWire | Peripheral drivers, pin maps, bus protocols, timing-critical code |
+| **@network-specialist** | HTTP, TCP/UDP, WebSocket, mDNS, TLS, streaming | Protocol design, latency, firewall/NAT, REST APIs, network debugging |
+| **@godot-specialist** | Godot 4.x, GDScript, XR/VR, MCU↔Godot bridge | Godot scenes, scripts, stream consumers, VR rendering |
+| **@test-harness** | Unit tests, CI, mocks, regressions | Test coverage, host/device tests, build matrix, validation |
+| **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
+| **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
+| **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+
 ## Collaboration Rules
 
 - **Consult @vr-specialist** whenever perception output changes format, rate, or stability characteristics.
