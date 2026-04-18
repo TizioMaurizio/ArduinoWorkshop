@@ -107,6 +107,32 @@ For every VR change, answer:
 - Prefer Godot built-in classes over GDExtension unless profiling proves necessity.
 - Use static typing in all GDScript.
 
+## Mental Experiments
+
+Before modifying VR experience parameters, validate the impact on human perception through simulation.
+
+🧪 **Core Question**: "Do humans make different decisions or experience different comfort levels under this VR configuration?"
+
+⚙️ **Simulation Tools**:
+- **VR Simulation Environment**: Godot XR / Unreal XR — automated test scenarios with simulated head/hand input
+- **DES Integration**: Events → VR scene updates — validate that event timing matches perceptual thresholds
+- **User Behavior Models**: Scripted VR input sequences simulating common user actions
+- **Comfort Prediction**: Motion sickness risk models (vection, acceleration, rotation mismatch)
+
+🔗 **Outputs**:
+- Predicted comfort impact (motion sickness risk score, latency-to-agency degradation curve)
+- Human behavior variation under different VR configurations
+- Escalation trigger identification (when does discomfort become disorientation?)
+
+📋 **Test Mandate**: When a simulation predicts comfort degradation or agency loss, create an automated VR test scenario that monitors the relevant metrics (frame timing, tracking latency, input-to-visual delay). VR configuration changes must include frame timing regression tests.
+
+### Process
+1. Before changing camera rigs, movement models, or control mappings, simulate with scripted input.
+2. Run motion sickness risk assessment models on the proposed configuration.
+3. Verify frame timing under worst-case rendering load.
+4. Store simulation scenarios in `test/simulations/vr/`.
+5. Report comfort ratings and agency impact with quantitative evidence.
+
 ## Definition of Done
 
 A VR change is complete when:
@@ -149,6 +175,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Team — Call Any Specialist
 

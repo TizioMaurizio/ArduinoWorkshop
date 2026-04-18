@@ -40,7 +40,13 @@ For each board target, record:
 - Run on-device smoke tests if hardware is available.
 - Note any skipped tests and why.
 
-### 5. Generate Changelog
+### 5. Verify Simulation Regressions
+- Check `test/simulations/` for any simulations affected by changes in this release.
+- Re-run affected simulations and compare results against previous baselines.
+- If simulation results differ, document the change in the changelog.
+- Verify `test/simulations/EXPERIMENT_LOG.md` is up to date.
+
+### 6. Generate Changelog
 Following Keep a Changelog format:
 
 ```markdown
@@ -92,6 +98,7 @@ For each board, document:
 - [ ] All board targets compile
 - [ ] All examples compile
 - [ ] Host tests pass
+- [ ] Simulation regressions verified (affected simulations re-run)
 - [ ] Smoke tests pass (or documented as skipped)
 - [ ] Changelog updated
 - [ ] Binary size report generated

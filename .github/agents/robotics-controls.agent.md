@@ -68,6 +68,32 @@ For every control change, answer:
 - Prefer non-blocking control loops. Never use `delay()` in hot paths.
 - ISR handlers: capture data, set flag, return. No computation in ISRs.
 
+## Mental Experiments
+
+Before implementing or modifying control loops, validate stability and safety through physics simulation.
+
+🧪 **Core Question**: "Is the control loop stable and safe under uncertain, delayed, or noisy VR input?"
+
+⚙️ **Simulation Tools**:
+- **Co-simulation (Physics)**: `PyBullet`, `MuJoCo` — simulate robot dynamics with realistic joint limits and inertia
+- **ROS2 + Gazebo**: Full robot simulation with sensor and actuator models
+- **DES wrapper**: Model discrete command events (from VR) entering the continuous control loop
+- **SimPy**: Event-level simulation of command queues, watchdog timers, and safety interlocks
+
+🔗 **Outputs**:
+- Dynamic failure modes (oscillation, overshoot, instability under latency)
+- Safety envelope definition (max speed, max acceleration, workspace limits)
+- Motion readability metrics (jerk, smoothness) under degraded conditions
+
+📋 **Test Mandate**: When a simulation reveals a stability issue or safety violation, create a host-side test encoding the boundary condition. Control loop parameter changes must include a regression test that verifies the safety envelope is maintained.
+
+### Process
+1. Before changing motion profiles or control gains, simulate in PyBullet/MuJoCo.
+2. Inject realistic VR input patterns (latency, jitter, packet loss) into the simulation.
+3. Verify the safety envelope holds under worst-case conditions.
+4. Export simulation scripts to `test/simulations/robotics-controls/`.
+5. Report failure modes and safety margins quantitatively.
+
 ## Definition of Done
 
 1. Motion is smooth, bounded, and traceable from VR intent to physical movement.
@@ -109,6 +135,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Team — Call Any Specialist
 

@@ -73,6 +73,15 @@ Common causes:
 4. **Failed OTA**: partition mismatch, incomplete write. Reflash factory image.
 5. **Corrupted NVS**: erase NVS partition with `esptool.py erase_region`.
 
+### 9. Simulate the Boot Sequence (When Applicable)
+If the issue is complex or recurring:
+- Model the boot state machine in SimPy or as a timed automaton (UPPAAL).
+- Include: bootloader → partition check → app init → WiFi → main loop.
+- Inject the observed fault (e.g., corrupted partition, strapping pin conflict, brownout at specific phase).
+- Verify the model reproduces the observed behavior.
+- Store in `test/simulations/esp-platform/boot_diag_<issue>.py`.
+- Use the simulation to predict whether the proposed fix addresses all failure paths.
+
 ## Report Template
 
 ### Observation

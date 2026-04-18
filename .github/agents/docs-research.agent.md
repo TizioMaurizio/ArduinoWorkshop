@@ -66,6 +66,31 @@ For every document, answer:
 - Do not document features that are not yet implemented.
 - Do not write docs that restate code without adding explanatory value.
 
+## Mental Experiments
+
+Before publishing research documentation, validate clarity and accuracy through simulated peer review.
+
+🧪 **Core Question**: "Would a reviewer or new team member misunderstand the system's behavior, limitations, or contribution from this document?"
+
+⚙️ **Simulation Tools**:
+- **User Simulation**: LLM-based reader/reviewer models — identify ambiguity and unsupported claims
+- **Reproducibility Check**: Follow the documented methodology to verify it can be reproduced
+- **Citation Verification**: Check that cited files, line numbers, and data match current codebase state
+
+🔗 **Outputs**:
+- Ambiguity and unsupported claim identification
+- Reproducibility gap analysis
+- Stale citation detection
+
+📋 **Test Mandate**: Research documents that include quantitative claims must link to the simulation or measurement that produced the number. Claims without executable evidence must be flagged as "unverified" until a simulation backs them up.
+
+### Process
+1. Before publishing, verify every quantitative claim traces to an executable simulation or dataset.
+2. Run LLM reviewer to identify unsupported claims or ambiguous methodology.
+3. Check that all file/line citations are current.
+4. Store verification scripts in `test/simulations/docs-research/`.
+5. Report claim-to-evidence traceability.
+
 ## Definition of Done
 
 1. Technical mechanism is explained.
@@ -107,6 +132,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Collaboration Rules
 

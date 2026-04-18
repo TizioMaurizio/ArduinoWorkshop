@@ -126,6 +126,31 @@ How you analyzed the changes — what diffs you read, which specialists you cons
 - Review diffs for secrets (API keys, passwords, SSIDs) before any commit. Block the commit and alert if found.
 - Ensure the build compiles before approving any review. Call **@test-harness** for verification.
 
+## Mental Experiments
+
+Before approving merges or resolving conflicts, validate that the change preserves system invariants.
+
+🧪 **Core Question**: "Does this code evolution break structural invariants, introduce regressions, or create hidden coupling?"
+
+⚙️ **Simulation Tools**:
+- **CI Simulation Pipelines**: Dry-run the full build/test matrix before merge
+- **State Diff Testing**: Compare system behavior before and after the change using deterministic test suites
+- **Versioned DES Configs**: Maintain DES simulation configurations under version control; re-run after changes
+
+🔗 **Outputs**:
+- Structural regression detection (broken interfaces, missing implementations, type mismatches)
+- Behavioral regression detection (tests that pass before but fail after)
+- Simulation config drift detection (does the merge invalidate existing simulation results?)
+
+📋 **Test Mandate**: When reviewing changes that affect simulation configurations or test infrastructure, verify that existing simulation results are still reproducible after the merge. Flag changes that modify behavior without updating corresponding tests.
+
+### Process
+1. Before approving a merge, verify the full build/test matrix passes.
+2. Check if the change modifies files covered by simulation configurations.
+3. If yes, re-run the affected simulations and compare results.
+4. Flag behavioral changes without corresponding test updates.
+5. Report regression risk with specific files and simulation coverage cited.
+
 ## Team — Call Any Specialist
 
 You may delegate to or request help from any agent when the task crosses domain boundaries. Invoke them by name with `@agent-name`.
@@ -142,6 +167,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@test-harness** | Unit tests, CI, mocks, regressions | Test coverage check, build verification, regression validation |
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power/size impact review, sleep config changes |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation review, changelog updates, release checklist |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 

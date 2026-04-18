@@ -66,13 +66,23 @@ If the device wakes to send data over Wi-Fi:
   - ESP8266 bare module: ~20µA
 - If measured current >> expected, systematically disconnect peripherals to find the draw.
 
+### 8. Energy Model Simulation
+Before finalizing the optimization, validate with a decision-theoretic energy simulation:
+- Create `test/simulations/power/sleep_<project>.py` using SimPy with energy cost model.
+- Model the full duty cycle: boot → init → sense → transmit → sleep → wake.
+- Assign energy cost per phase (from datasheet or measurements).
+- Sweep parameters: sleep duration, sensor read count, transmit batch size.
+- Generate: battery life estimate, Pareto front (energy vs. data freshness), value-of-information curve.
+- For POMDP scenarios (adaptive sensing): use `pomdp_py` to find optimal wake policy.
+- Store results in `test/simulations/power/sleep_<project>_results/`.
+
 ## Report Template
 
 ### Observation
 Current power profile: measured or estimated mA in each state. Identified wake blockers and inefficiencies. Files and lines cited.
 
 ### Methodology
-How you identified the issues — what code patterns you searched for, what hardware you considered, what reference currents you used.
+How you identified the issues — what code patterns you searched for, what hardware you considered, what reference currents you used. Include simulation parameters and energy model assumptions.
 
 ### Result
 Optimizations ranked by impact:
@@ -80,5 +90,7 @@ Optimizations ranked by impact:
 |--------|-------------|----------|------------|
 | ... | ... | ... | ... |
 
+Battery life projection from simulation: `X days at Y% duty cycle` (cite simulation script).
+
 ### Next Steps
-Measurement plan, hardware modifications needed, remaining questions.
+Measurement plan, hardware modifications needed, remaining questions. Simulation re-run conditions.

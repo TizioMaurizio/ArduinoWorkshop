@@ -68,6 +68,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -108,6 +111,32 @@ Work through problems systematically:
 - Respect the Godot scene tree: do not reparent or free nodes unless the design requires it.
 - For VR: never drop below frame rate targets. Offload heavy work to background threads or spread across frames.
 - Prefer Godot built-in classes (`Image`, `ImageTexture`, `StreamPeerTCP`) over GDExtension/native unless profiling proves necessity.
+
+## Mental Experiments
+
+Before modifying VR scenes or the MCU↔Godot data bridge, validate behavior through simulation.
+
+🧪 **Core Question**: "Does the visualization accurately represent system state, or does rendering alter the user's interpretation?"
+
+⚙️ **Simulation Tools**:
+- **Game Engine Simulation**: Godot (already the project engine) — scene testing, automated camera walks
+- **DES Synchronization**: Event stream (UDP / Kafka) → Godot scene — validate event-to-visual pipeline
+- **Automated Visual Testing**: Headless Godot with viewport capture — regression on rendered output
+- **SimPy**: Simulate stream ingestion timing, frame drop patterns, buffer behavior
+
+🔗 **Outputs**:
+- Visual debug overlays for system state inspection
+- Frame timing analysis under degraded network conditions
+- Rendering fidelity verification (does the scene match the event state?)
+
+📋 **Test Mandate**: When a simulation reveals that rendering delays or stream stalls cause user confusion, create a Godot scene test or SimPy model that reproduces it. Stream protocol changes must include integration tests that verify frame delivery under simulated network conditions.
+
+### Process
+1. Before modifying the stream consumer, simulate frame arrival patterns in SimPy.
+2. Test the Godot scene in headless mode with automated viewport capture.
+3. Verify event-to-visual latency meets the frame budget.
+4. Store simulation scripts in `test/simulations/godot/`.
+5. Report visual fidelity and timing results with captured frames.
 
 ## Output Protocol — Report Like a Scientist
 

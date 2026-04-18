@@ -37,6 +37,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -79,6 +82,30 @@ Reason step-by-step through the problem internally:
 - Forbid hidden hardware assumptions — all pin assignments must trace to a board manifest or explicit config.
 - If a task touches multiple subsystems, decompose into sequential subtasks with clear hand-off points.
 - If requirements are ambiguous, state your assumptions explicitly — never guess silently.
+
+## Mental Experiments
+
+Before dispatching implementation work, validate architectural decisions through executable simulation.
+
+🧪 **Core Question**: "Are embedded timing constraints, memory budgets, and task priorities satisfiable under worst-case conditions?"
+
+⚙️ **Simulation Tools**:
+- **Timed Automata**: `UPPAAL` — model task schedules, ISR preemption, deadline verification
+- **RTOS Simulation**: FreeRTOS Sim (POSIX) — run task sets on host to detect priority inversion, stack overflow
+- **DES**: `SimPy` — model event-driven firmware state machines with realistic timing
+
+🔗 **Outputs**:
+- Deadline miss detection under worst-case task interleaving
+- Memory high-water-mark estimates per task
+- Constraint violation reports (stack, heap, timing) with reproducible traces
+
+📋 **Test Mandate**: When a mental experiment reveals a timing violation or memory constraint breach, create a host-side regression test that encodes that constraint. Every architectural decision that introduces a timing or memory assumption must have a corresponding test.
+
+### Process
+1. Before any multi-subsystem dispatch, model the task set in UPPAAL or SimPy.
+2. Export the simulation as a runnable script in `test/simulations/firmware-arch/`.
+3. Include the results summary in the dispatch message to specialist agents.
+4. If the simulation shows a constraint violation, do not dispatch — redesign first.
 
 ## Output Protocol — Report Like a Scientist
 

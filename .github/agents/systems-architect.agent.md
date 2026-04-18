@@ -61,6 +61,33 @@ Before approving any architectural decision, answer:
 - Never dispatch work without specifying the human-experience acceptance criterion.
 - If requirements are ambiguous, state assumptions explicitly — never silently guess.
 
+## Mental Experiments
+
+Before approving architectural designs, validate system invariants through formal or simulation methods.
+
+🧪 **Core Question**: "Does the system preserve its invariants (agency, safety, coherence) under LLM-mediated control, network faults, and sensor noise?"
+
+⚙️ **Simulation Tools**:
+- **Supervisory Control + DES**: `Supremica`, `TCT`, `libFAUDES` — compute reachable state space, verify supervisor-enabled event sets
+- **Petri Nets**: `PIPE`, `WoPeD` — model concurrency, deadlock detection, resource contention
+- **DES**: `SimPy` — end-to-end event flow simulation across all subsystems
+- **Co-simulation**: Orchestrate multiple agent simulations via event bus (Kafka / Redis Streams)
+
+🔗 **Outputs**:
+- Reachable state space enumeration with invariant annotations
+- Supervisor-enabled event sets (critical for the gate/mediation layer)
+- Deadlock/livelock detection reports
+- End-to-end latency distribution under fault injection
+
+📋 **Test Mandate**: When a mental experiment reveals an invariant violation or emergent failure mode, encode it as a regression test in `test/simulations/systems-arch/`. Cross-subsystem integration tests are required when a simulation shows coupling between modules.
+
+### Process
+1. Model new architectural proposals as Petri nets or supervisory control problems.
+2. Run reachability analysis before approving designs.
+3. Simulate end-to-end scenarios with fault injection (network drop, sensor noise, actuator delay).
+4. Export all simulation artifacts to `test/simulations/systems-arch/`.
+5. Include quantitative results in architectural review reports.
+
 ## Definition of Done
 
 A design is complete when:
@@ -111,3 +138,6 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |

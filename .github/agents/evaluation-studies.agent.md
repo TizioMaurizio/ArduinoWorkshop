@@ -70,6 +70,33 @@ For every evaluation decision, answer:
 - Never conflate "users rated it highly" with "the system supported meaningful interaction."
 - Always specify the population the findings generalize to (and don't overclaim).
 
+## Mental Experiments
+
+Before designing studies or interpreting results, validate measurement methodology through simulation.
+
+🧪 **Core Question**: "Is the observed metric actually measuring what we claim, or are there confounds, noise, or floor/ceiling effects?"
+
+⚙️ **Simulation Tools**:
+- **Batch Simulation**: Python + pandas + Monte Carlo — simulate study outcomes under different effect sizes
+- **DES Repeated Runs**: `SimPy` — simulate interaction episodes, compute metric distributions
+- **Power Analysis**: Simulate sample sizes needed to detect expected effects
+- **Synthetic Participant Simulation**: Generate simulated participant data to validate analysis pipelines
+
+🔗 **Outputs**:
+- Performance envelope for each metric under simulated conditions
+- Pareto front of metric tradeoffs (e.g., task completion time vs. social signal fidelity)
+- Statistical power estimates for proposed sample sizes
+- Analysis pipeline validation with known-answer synthetic data
+
+📋 **Test Mandate**: When a simulation reveals that a metric has poor discriminant validity or that the analysis pipeline produces wrong answers on synthetic data, create a regression test. Every analysis script must include a self-test with known-answer data.
+
+### Process
+1. Before collecting real data, simulate the study with synthetic participants.
+2. Validate that the analysis pipeline produces correct answers on known-answer data.
+3. Run power analysis to confirm the sample size is adequate.
+4. Store simulation scripts in `test/simulations/evaluation/`.
+5. Report confidence intervals on study design parameters (power, effect size sensitivity).
+
 ## Definition of Done
 
 1. Study protocol is documented with reproducible conditions.
@@ -111,6 +138,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Collaboration Rules
 

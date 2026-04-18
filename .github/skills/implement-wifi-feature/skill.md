@@ -57,9 +57,20 @@ Depending on the feature:
 - **On-device test**: connect, disconnect (pull antenna / toggle AP), verify reconnect.
 - **OTA test**: successful update, interrupted update, rollback.
 
+### 8. Network Simulation
+Before deploying, validate the feature under realistic network conditions:
+- Create `test/simulations/esp-platform/wifi_<feature>.py` using SimPy.
+- Model the WiFi state machine with fault injection (disconnect at each state, AP unavailable, DHCP timeout).
+- For MQTT: simulate broker unavailability, QoS retry, message buffering overflow.
+- For OTA: simulate download interruption at 25%, 50%, 75%, 99% completion.
+- Record: recovery times, state machine paths exercised, watchdog compliance.
+- For network-intensive features, use ns-3 or netem profiles to model latency/jitter impact.
+
 ## Acceptance Criteria
 - Credentials are not in version control.
 - Connection handles disconnect and reconnects automatically.
 - Watchdog does not trigger during normal operation.
 - Feature compiles for all target ESP boards.
 - State machine logs transitions for debugging.
+- Fault simulation exists covering disconnect/reconnect scenarios.
+- All simulation-discovered unhandled faults have corresponding host-side tests.

@@ -52,6 +52,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -90,6 +93,31 @@ Work through problems systematically:
 - Prefer `WiFi.setAutoReconnect(true)` with event-driven status checks over blocking `WiFi.waitForConnectResult()`.
 - When adding OTA, ensure fallback behavior if the update stream is interrupted.
 - Do not modify `sdkconfig` defaults without documenting the change and its rationale.
+
+## Mental Experiments
+
+Before modifying connectivity or platform configuration, validate resilience through event simulation.
+
+🧪 **Core Question**: "Does the ESP platform recover correctly from Wi-Fi drops, OTA interruptions, watchdog triggers, and flash corruption?"
+
+⚙️ **Simulation Tools**:
+- **Event Simulation**: `SimPy` — model WiFi state machine, MQTT reconnect, OTA download with fault injection
+- **Hardware-in-the-Loop**: Real ESP32 + automated test scripts for connectivity fault injection
+- **State Machine Verification**: Model WiFi/MQTT state machines as finite automata, verify all transitions
+
+🔗 **Outputs**:
+- Resilience to transient faults (WiFi drop → reconnect → MQTT re-subscribe timing)
+- Watchdog safety verification under all state machine paths
+- OTA failure mode characterization (interrupted at each download phase)
+
+📋 **Test Mandate**: When a simulation reveals a recovery path that doesn't work, create a host-side test that models the fault sequence. WiFi and MQTT state machines must have transition tests for every edge in the state graph.
+
+### Process
+1. Model the WiFi/MQTT/OTA state machine formally before modifying it.
+2. Simulate fault injection: WiFi drop at each state, OTA interruption at each phase.
+3. Verify watchdog compliance under all simulated paths.
+4. Store state machine models and simulation scripts in `test/simulations/esp-platform/`.
+5. Report recovery timing and failure modes quantitatively.
 
 ## Output Protocol — Report Like a Scientist
 

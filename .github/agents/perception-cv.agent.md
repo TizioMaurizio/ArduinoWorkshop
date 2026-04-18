@@ -48,6 +48,32 @@ For every perception change, answer:
 - Document the latency this pipeline adds and its perceptual consequence.
 - Prefer deterministic, reproducible pipelines for study conditions.
 
+## Mental Experiments
+
+Before deploying or modifying perception pipelines, validate robustness through synthetic data and probabilistic simulation.
+
+🧪 **Core Question**: "Can a perceptual error propagate into a wrong decision or a confusing VR experience?"
+
+⚙️ **Simulation Tools**:
+- **Monte Carlo Simulation**: Python + NumPy — sample detection noise, occlusion probability, false positive rates
+- **Synthetic Data + Replay**: OpenCV pipelines with recorded or generated frames — deterministic regression
+- **POMDP Simulators**: `pomdp_py` — model belief updates under partial observability
+- **SimPy**: Event-driven simulation of detection → decision → action chains
+
+🔗 **Outputs**:
+- Error distribution characterization (false positive rate, localization noise, ID swap frequency)
+- Belief update robustness under occlusion and noise
+- Downstream impact analysis: "this detection error rate causes X% avatar jitter in VR"
+
+📋 **Test Mandate**: When a simulation reveals that a detection failure causes downstream misbehavior, create a regression test with the synthetic input that triggered it. Perception pipeline changes must include replay tests on known-difficult frames.
+
+### Process
+1. Before modifying detection or tracking, run Monte Carlo simulation with noise injection.
+2. Test the pipeline with synthetic worst-case inputs (occlusion, blur, low light).
+3. Trace errors through the full pipeline to VR output using POMDP models.
+4. Store simulation scripts and synthetic data in `test/simulations/perception-cv/`.
+5. Report confidence bounds, not just accuracy numbers.
+
 ## Definition of Done
 
 1. Outputs are temporally stable under typical operating conditions (no visible jitter in VR).
@@ -88,6 +114,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Team — Call Any Specialist
 

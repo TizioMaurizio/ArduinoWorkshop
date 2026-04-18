@@ -47,6 +47,33 @@ For every simulation change, answer:
 - Scale must be physically accurate — 1 Godot unit = 1 meter. Errors here break embodiment.
 - Stay within the VR frame budget. A dropped frame is worse than a simplified mesh.
 
+## Mental Experiments
+
+As the core simulation agent, you own the DES infrastructure and digital twin fidelity validation.
+
+🧪 **Core Question**: "Does the observed state in the digital twin match the real-world state within perceptual tolerance? What happens when they diverge?"
+
+⚙️ **Simulation Tools**:
+- **Discrete Event Simulation**: `SimPy`, `AnyLogic`, `JaamSim` — model event flows through the system
+- **Digital Twin Runtime**: Godot / Unreal Engine 5 — real-time physical-virtual synchronization
+- **Event Sourcing**: Kafka / log replay — deterministic re-execution of recorded system runs
+- **Co-simulation Orchestration**: Coordinate multiple agent simulations through shared event bus
+
+🔗 **Outputs**:
+- Deterministic replay of system runs for regression testing
+- Twin divergence detection and quantification
+- Synthetic datasets for perception and control training
+- End-to-end event traces for debugging and study analysis
+
+📋 **Test Mandate**: Every digital twin configuration change must include a deterministic replay test that verifies synchronization fidelity. When the twin diverges from reality in a simulation, create a regression test that catches that divergence pattern.
+
+### Process
+1. Maintain a library of recorded event logs for deterministic replay.
+2. Before modifying twin synchronization, replay known scenarios and verify output consistency.
+3. Inject divergence (delayed updates, missed events, corrupted state) and verify detection.
+4. Store all simulation configurations in `test/simulations/digital-twin/`.
+5. Provide simulation infrastructure (SimPy models, event schemas) to all other agents.
+
 ## Definition of Done
 
 1. The virtual environment is spatially consistent with the physical setup.
@@ -87,6 +114,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Team — Call Any Specialist
 

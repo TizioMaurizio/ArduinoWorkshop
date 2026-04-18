@@ -63,7 +63,15 @@ Create `test/host/test_<device_name>.cpp`:
 - Test error handling: NACK, timeout, CRC failure.
 - Test initialization sequence.
 
-### 8. Document
+### 8. Run Fault Simulation
+Before considering the driver complete, run a fault resilience simulation:
+- Create `test/simulations/drivers/<device_name>_faults.py` using SimPy.
+- Model the bus transaction sequence (init → read → parse → retry on error).
+- Inject faults: consecutive NACKs, timeout, CRC mismatch, mid-transaction reset.
+- Record: max consecutive faults before recovery fails, recovery time, fallback trigger.
+- Convert any discovered unhandled fault into a new host-side test case.
+
+### 9. Document
 - Write `lib/<DeviceName>/README.md` with: wiring table, API reference, example usage, known limitations.
 - Update project-level docs if this driver is part of a larger feature.
 
@@ -71,5 +79,6 @@ Create `test/host/test_<device_name>.cpp`:
 - Driver compiles for all target boards without warnings.
 - Example sketch compiles and demonstrates basic usage.
 - Host-side test passes with fake data.
-- Error paths are tested.
+- Error paths are tested (including simulation-discovered faults).
+- Fault simulation script exists in `test/simulations/drivers/`.
 - README includes wiring table and API reference.

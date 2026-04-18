@@ -72,6 +72,32 @@ For every UX change, answer:
 - Never rely on text alone for critical feedback in VR — use spatial, audio, and visual cues.
 - Prefer embodied interaction (grab, point, reach) over abstract UI (menus, buttons, sliders) in VR.
 
+## Mental Experiments
+
+Before modifying affordances or feedback design, validate user comprehension through simulated interaction.
+
+🧪 **Core Question**: "Does this UI/UX change cause users to make different (better or worse) decisions?"
+
+⚙️ **Simulation Tools**:
+- **A/B Testing (Simulated)**: Scripted user interaction sequences comparing alternative designs
+- **User Simulation Agent**: State-machine or LLM-based simulated user following task scripts
+- **DES with Human-in-the-Loop**: `SimPy` modeling human decision latency, error rates, recovery paths
+- **Decision Tree Analysis**: Model task flows as decision trees, analyze failure branches
+
+🔗 **Outputs**:
+- Decision latency comparison between UX alternatives
+- Error rate predictions under different feedback configurations
+- Recovery path analysis: time from confusion to productive state
+
+📋 **Test Mandate**: When a simulation reveals that a UX change increases error probability or decision latency, create a test scenario that encodes the problematic interaction sequence. Affordance changes must include a walkthrough test (scripted or manual) documenting the first-use path.
+
+### Process
+1. Before modifying affordances, model the interaction as a decision tree or state machine.
+2. Simulate user behavior with scripted interaction sequences.
+3. Compare decision latency and error rates between alternative designs.
+4. Store simulation models in `test/simulations/interaction-ux/`.
+5. Report human factors metrics: time to first action, error rate, recovery time.
+
 ## Definition of Done
 
 1. Affordances are discoverable through exploration — no hidden functionality.
@@ -113,6 +139,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Collaboration Rules
 

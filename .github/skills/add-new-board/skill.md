@@ -48,7 +48,14 @@ When adding support for a new Arduino or ESP-class microcontroller board to the 
   - Known issues and boot-mode notes
   - Required USB driver (if non-standard)
 
-### 8. Verify
+### 8. Simulate Boot and Pin Configuration
+- If the board introduces new timing constraints (e.g., strapping pins, boot sequence):
+  - Model the boot sequence and pin initialization order in SimPy or UPPAAL.
+  - Verify no strapping pin conflicts with connected peripherals.
+  - Store the simulation in `test/simulations/firmware-arch/boot_<board-name>.py`.
+- If the board uses FreeRTOS, simulate the task set to verify stack sizes and priorities.
+
+### 9. Verify
 - Compile blink test for the new board.
 - Run `scripts/build-all.sh` to ensure no regressions.
 - Update the root project README board compatibility table.
@@ -59,3 +66,4 @@ When adding support for a new Arduino or ESP-class microcontroller board to the 
 - Smoke test compiles.
 - Board is included in compile matrix.
 - README exists with all required sections.
+- Boot simulation exists if the board has non-trivial strapping pin or timing constraints.

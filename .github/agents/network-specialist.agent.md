@@ -70,6 +70,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -110,6 +113,33 @@ Diagnose and design network features layer by layer:
 - When changing a protocol, update both the sender (firmware) and receiver (client/Godot) atomically.
 - TLS certificates must not be committed to the repository. Document the provisioning process instead.
 - Respect ESP32 socket limits (~4–8 concurrent connections depending on config). Document max clients.
+
+## Mental Experiments
+
+Before changing protocol design or network configuration, validate behavior under realistic network conditions.
+
+🧪 **Core Question**: "How do latency, jitter, and packet loss affect end-to-end system behavior and user experience?"
+
+⚙️ **Simulation Tools**:
+- **Network Simulation (DES)**: `ns-3`, `OMNeT++` — model topology, queuing, congestion, loss
+- **SimPy**: Lightweight latency/jitter injection for protocol-level simulation
+- **`tc` / `netem`**: Linux traffic control for real-device network impairment testing
+- **Python + Monte Carlo**: Statistical modeling of latency distributions
+
+🔗 **Outputs**:
+- Latency distribution under load (p50, p95, p99)
+- Impact of packet loss on frame delivery rate and user-perceived stutter
+- Synchronization error between event streams under jitter
+- Backpressure behavior under bandwidth constraints
+
+📋 **Test Mandate**: When a simulation shows that network conditions cause user-perceptible degradation, create a test that injects those conditions and verifies graceful handling. Protocol changes must include conformance tests that validate framing, timeout, and reconnect behavior.
+
+### Process
+1. Before deploying protocol changes, simulate in ns-3 or SimPy with realistic network profiles.
+2. Inject jitter, loss, and bandwidth constraints. Measure latency impact on the full data path.
+3. Verify backpressure and reconnect behavior under simulated failure.
+4. Store simulation configs and results in `test/simulations/network/`.
+5. Report latency impact on user-perceived quality (frame rate, control responsiveness).
 
 ## Output Protocol — Report Like a Scientist
 

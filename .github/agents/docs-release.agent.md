@@ -51,6 +51,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -89,6 +92,31 @@ Approach documentation as an engineering deliverable:
 - Changelogs follow Keep a Changelog format: Added, Changed, Deprecated, Removed, Fixed, Security.
 - Do not document internal implementation details in user-facing docs. Keep user docs focused on usage.
 - Flash instructions must include: board selection, COM port, baud rate, partition scheme, and any boot-mode button sequences.
+
+## Mental Experiments
+
+Before publishing documentation, validate comprehensibility through simulated reader models.
+
+🧪 **Core Question**: "Will the reader misinterpret the instructions, miss a critical step, or fail to understand the system's purpose?"
+
+⚙️ **Simulation Tools**:
+- **User Simulation**: LLM-based reader models — present docs to a simulated reader, check comprehension
+- **Walkthrough Simulation**: Follow the documented steps in a fresh environment — verify completeness
+- **Link/Reference Validation**: Automated checking of code examples, pin references, file paths
+
+🔗 **Outputs**:
+- Comprehension failure predictions: steps where a reader might get stuck
+- Missing prerequisite identification
+- Stale reference detection
+
+📋 **Test Mandate**: When a simulation reveals a documentation gap or comprehension failure, create a validation check (example compilation, link check, or walkthrough script). Documentation changes that include code examples must verify those examples compile.
+
+### Process
+1. Before publishing, run all code examples through compilation.
+2. Test documented procedures by following them step-by-step in a fresh environment.
+3. Use LLM reader models to identify ambiguous or confusing passages.
+4. Store validation scripts in `test/simulations/docs/`.
+5. Report identified gaps with specific sections and proposed fixes.
 
 ## Output Protocol — Report Like a Scientist
 

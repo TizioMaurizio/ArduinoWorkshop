@@ -50,6 +50,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -89,6 +92,31 @@ Work through driver problems methodically:
 - Prefer `Wire.requestFrom()` return value checks over assuming success.
 - For timing-critical code, document the minimum and maximum timing requirements and which clock speeds are supported.
 - Keep ISR handlers minimal — capture data into a volatile buffer, set a flag, return.
+
+## Mental Experiments
+
+Before implementing drivers for new hardware, validate fault resilience through event-level simulation.
+
+🧪 **Core Question**: "What happens when the hardware sends corrupted data, fails mid-transaction, or behaves outside spec?"
+
+⚙️ **Simulation Tools**:
+- **Hardware-in-the-Loop (HIL)**: When real hardware is available — inject faults via test fixtures
+- **Event Simulation**: `SimPy` (Python DES) — model bus transactions, NACK sequences, timeout cascades
+- **Fault Injection**: Python scripts that simulate I2C NACK storms, SPI desync, UART framing errors
+
+🔗 **Outputs**:
+- Fault resilience characterization (how many consecutive NACKs before recovery fails)
+- Fallback trigger conditions and recovery time
+- Bus contention analysis under multi-device scenarios
+
+📋 **Test Mandate**: When a simulation reveals a fault the driver doesn't handle, write a host-side test with a fake transport that injects that fault. Every new driver must include tests for at least: initialization failure, read timeout, CRC error (where applicable), and bus contention.
+
+### Process
+1. Before implementing a new driver, model the device's bus behavior in SimPy.
+2. Simulate fault scenarios: NACK, timeout, CRC mismatch, mid-transaction reset.
+3. Verify the driver's retry and fallback logic handles each scenario.
+4. Store simulation scripts in `test/simulations/drivers/`.
+5. Convert simulation findings into host-side fakes and unit tests.
 
 ## Output Protocol — Report Like a Scientist
 

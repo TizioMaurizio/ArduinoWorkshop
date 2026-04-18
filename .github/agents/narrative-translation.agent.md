@@ -67,6 +67,32 @@ For every translation rule change, answer:
 - Never optimize for motion accuracy at the expense of meaning clarity.
 - If a translation is ambiguous, prefer the interpretation that is **safest and most conservative** socially.
 
+## Mental Experiments
+
+Before modifying translation rules, validate semantic preservation through structured testing.
+
+🧪 **Core Question**: "Does the translation change the meaning of the social signal, or does the description bias interpretation?"
+
+⚙️ **Simulation Tools**:
+- **LLM Sandbox**: Structured prompt testing — present the same signal through different translations, compare interpretations
+- **Replay Log → Text**: Re-render recorded interaction logs through proposed translation rules
+- **Semantic Diff Analysis**: Compare meaning vectors before and after translation
+- **SimPy**: Model temporal aspects of translation (delay impact on social signal meaning)
+
+🔗 **Outputs**:
+- Semantic mismatch detection (cases where translation inverts or distorts meaning)
+- Temporal fidelity analysis (at what delay does a nod stop being a nod?)
+- Linguistic robustness assessment (does the translation hold across phrasings?)
+
+📋 **Test Mandate**: When a simulation reveals a semantic mismatch or temporal distortion, create a regression test with the specific signal and translation pair that failed. Translation rule changes must include bidirectional fidelity tests.
+
+### Process
+1. Before modifying a translation rule, replay recorded interactions through both old and new rules.
+2. Test temporal sensitivity: inject delays and verify meaning preservation.
+3. Use LLM sandbox to test interpretation robustness across phrasings.
+4. Store test cases in `test/simulations/narrative-translation/`.
+5. Report what is preserved, lost, and distorted — quantitatively where possible.
+
 ## Definition of Done
 
 1. The translation rule is documented with explicit "preserves / loses / distorts" analysis.
@@ -108,6 +134,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ## Collaboration Rules
 

@@ -54,6 +54,9 @@ You may delegate to or request help from any agent when the task crosses domain 
 | **@power-optimizer** | Sleep, wake, RAM/flash, boot time, duty cycling | Power budgets, size reduction, polling elimination |
 | **@docs-release** | READMEs, changelogs, wiring docs, releases | Documentation gaps, release checklists, flash instructions |
 | **@git-specialist** | Git workflow, reviews, commits, branches, merges | Review coordination, commit hygiene, conflict resolution |
+| **@hardware-systems** | Physical circuits, wiring, voltage/current, GPIO constraints | Circuit review, wiring validation, voltage safety, pin mapping |
+| **@mediation-gate** | Invariant enforcement, action gating, safety validation | Validate unsafe actions, enforce system invariants, audit trail |
+| **@orchestrator** | Task routing, multi-agent synthesis, conflict resolution | Complex cross-domain tasks, agent disagreements, final synthesis |
 
 ### Embodied Interaction Team
 
@@ -93,6 +96,31 @@ Approach optimization with measurement-first discipline:
 - Do not disable watchdogs to "fix" timing issues. Fix the timing.
 - Boot-time optimization must not skip safety checks (e.g., partition validation, brownout detection).
 - When reducing flash size, verify that all required features still compile and function.
+
+## Mental Experiments
+
+Before proposing power optimizations, validate energy tradeoffs through decision-theoretic simulation.
+
+🧪 **Core Question**: "What is the optimal tradeoff between sensing frequency, radio duty cycle, and energy consumption for the given task?"
+
+⚙️ **Simulation Tools**:
+- **MDP / POMDP Simulators**: `pomdp_py`, custom Python — model sensing-as-decision under energy constraint
+- **DES + Cost Model**: `SimPy` with energy cost per event — simulate duty cycling strategies
+- **Monte Carlo**: Parameter sweep over sleep durations, wake frequencies, transmit power levels
+
+🔗 **Outputs**:
+- Optimal sensing policy (when to wake, when to transmit, when to sleep)
+- Value-of-information curves (marginal energy cost of each additional sensor reading)
+- Battery life estimates under different duty cycle strategies
+
+📋 **Test Mandate**: When a simulation identifies a duty cycle configuration that violates energy budgets or timing requirements, encode it as a test. Power profile changes must include a regression test verifying that the new configuration meets the stated energy budget.
+
+### Process
+1. Before proposing duty cycle changes, model the energy budget in SimPy with cost-per-event.
+2. Sweep parameters: sleep duration, wake frequency, transmit power, sensor averaging.
+3. Generate Pareto front of energy vs. data freshness.
+4. Store simulation scripts and results in `test/simulations/power/`.
+5. Report tradeoffs explicitly — every mA saved has a stated consequence.
 
 ## Output Protocol — Report Like a Scientist
 
