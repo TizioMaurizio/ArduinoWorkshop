@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include "esp_camera.h"
 #include <WiFi.h>
-#include <ArduinoMqttClient.h>
-//
+#include <WiFiUdp.h>
+#include <ESPmDNS.h>
+
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
-//
 
 // Select camera model
 //#define CAMERA_MODEL_WROVER_KIT
@@ -16,21 +16,26 @@
 
 #include "camera_pins.h"
 
+// --- Wi-Fi credentials -------------------------------------------------------
+const char* ssid     = "Physical Metaverse 2.4GHz2";
+const char* password = "earthbound";
 
-WiFiClient wifiClient;
-MqttClient mqttClient(wifiClient);
-const char broker[] = "YOUR_MQTT_BROKER_IP";
-int        port     = 1883;
-const char topic[]  = "scan";
+// --- UDP listener for angle commands from Godot ------------------------------
+// Protocol: receives "<channel>,<angle>\n" packets, forwards to Arduino serial.
+constexpr uint16_t UDP_PORT = 9685;
 
+// --- Serial (UART0) doubles as USB debug AND Arduino link --------------------
+// The TX/RX header pins on ESP32-CAM are UART0 (GPIO 1 TX, GPIO 3 RX).
+// After setup, forwarded angle commands share the same UART as debug output.
+// The Arduino parser ignores non-"<ch>,<angle>" lines, so this is safe.
+constexpr uint32_t SERIAL_BAUD = 115200;
 
-const char* ssid = "YOUR_SSID";
-const char* password = "YOUR_PASSWORD";
+WiFiUDP udp;
 
 void startCameraServer();
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(SERIAL_BAUD);
   Serial.setDebugOutput(true);
   Serial.println();
 
@@ -92,18 +97,6 @@ void setup() {
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
-  /*Serial.println("Insert wifi name");
-  char* wifiname;
-  while(!Serial.available()){
-    delay(300);
-  }
-  Serial.readString().toCharArray(wifiname, 20);
-  Serial.println("Insert wifi password");
-  char* wifipassword;
-  while(!Serial.available()){
-    delay(300);
-  }
-  Serial.readString().toCharArray(wifipassword, 20);*/
 
   WiFi.begin(ssid, password);
 
@@ -114,34 +107,19 @@ void setup() {
   Serial.println("");
   Serial.println("WiFi connected");
 
-  Serial.print("Attempting to connect to the MQTT broker: ");
-  Serial.println(broker);
-
-  if (!mqttClient.connect(broker, port)) {
-    Serial.print("MQTT connection failed! Error code = ");
-    Serial.println(mqttClient.connectError());
-
-    while (1);
+  // mDNS: advertise as esp32cam.local
+  if (MDNS.begin("esp32cam")) {
+    MDNS.addService("http", "tcp", 80);
+    MDNS.addService("servo-udp", "udp", UDP_PORT);
+    Serial.println("[mDNS] esp32cam.local");
+  } else {
+    Serial.println("[mDNS] failed to start");
   }
 
-  Serial.println("You're connected to the MQTT broker!");
-  Serial.println();
+  // Start UDP listener for Godot angle commands
+  udp.begin(UDP_PORT);
+  Serial.printf("[Bridge] UDP listening on port %u\n", UDP_PORT);
 
-  Serial.print("Subscribing to topic: ");
-  Serial.println(topic);
-  Serial.println();
-
-  // subscribe to a topic
-  mqttClient.subscribe(topic);
-
-  // topics can be unsubscribed using:
-  // mqttClient.unsubscribe(topic);
-
-  Serial.print("Waiting for messages on topic: ");
-  Serial.println(topic);
-  Serial.println();
-
-  delay(3000);
   startCameraServer();
 
   Serial.print("Camera Ready! Use 'http://");
@@ -150,24 +128,16 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  int messageSize = mqttClient.parseMessage();
-  if (messageSize) {
-    // we received a message, print out the topic and contents
-    Serial.print("Received a message with topic '");
-    Serial.print(mqttClient.messageTopic());
-    Serial.print("', length ");
-    Serial.print(messageSize);
-    Serial.println(" bytes:");
-
-    // use the Stream interface to print the contents
-    while (mqttClient.available()) {
-      Serial.print((char)mqttClient.read());
+  // --- Forward UDP packets from Godot → Arduino serial -----------------------
+  int packet_size = udp.parsePacket();
+  if (packet_size > 0) {
+    char buf[64];
+    int len = udp.read(buf, sizeof(buf) - 1);
+    if (len > 0) {
+      buf[len] = '\0';
+      Serial.print(buf);                 // forward "<ch>,<angle>\n" to Arduino via TX pin
     }
-    Serial.println();
-
-    Serial.println();
-    delay(1000);
   }
-  delay(10);
+
+  // Arduino OK/ERR responses arrive on RX — visible on USB serial monitor too
 }
