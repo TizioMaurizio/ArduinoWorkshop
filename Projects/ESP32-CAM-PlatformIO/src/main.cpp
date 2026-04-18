@@ -24,13 +24,16 @@ const char* password = "earthbound";
 // Protocol: receives "<channel>,<angle>\n" packets, forwards to Arduino serial.
 constexpr uint16_t UDP_PORT = 9685;
 
-// --- Serial (UART0) doubles as USB debug AND Arduino link --------------------
-// The TX/RX header pins on ESP32-CAM are UART0 (GPIO 1 TX, GPIO 3 RX).
-// After setup, forwarded angle commands share the same UART as debug output.
-// The Arduino parser ignores non-"<ch>,<angle>" lines, so this is safe.
-constexpr uint32_t SERIAL_BAUD = 115200;
+// --- Serial2 (UART2): dedicated clean link to Arduino ------------------------
+// GPIO 14/15 are JTAG strapping pins — cause flash/boot glitches when loaded.
+// GPIO 13 is free on AI-Thinker (not camera, not LED, not strapping). Safe.
+constexpr int ARDUINO_TX_PIN  = 13;   // ESP32 → Arduino RX
+constexpr int ARDUINO_RX_PIN  = -1;   // not wired — we only send, never receive
+constexpr uint32_t ARDUINO_BAUD = 4800;   // low baud for SoftwareSerial reliability
+constexpr uint32_t SERIAL_BAUD  = 115200;
 
 WiFiUDP udp;
+HardwareSerial ArduinoSerial(2);  // UART2
 
 void startCameraServer();
 
@@ -38,6 +41,9 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   Serial.setDebugOutput(true);
   Serial.println();
+
+  // NOTE: UART2 init is deferred until after startCameraServer()
+  // because the camera/SD driver may reconfigure GPIO 13 (HS2_DATA3).
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -107,11 +113,11 @@ void setup() {
   Serial.println("");
   Serial.println("WiFi connected");
 
-  // mDNS: advertise as esp32cam.local
-  if (MDNS.begin("esp32cam")) {
+  // mDNS: advertise as esp32-8E0A7C.local (based on MAC suffix)
+  if (MDNS.begin("esp32-8E0A7C")) {
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("servo-udp", "udp", UDP_PORT);
-    Serial.println("[mDNS] esp32cam.local");
+    Serial.println("[mDNS] esp32-8E0A7C.local");
   } else {
     Serial.println("[mDNS] failed to start");
   }
@@ -121,6 +127,11 @@ void setup() {
   Serial.printf("[Bridge] UDP listening on port %u\n", UDP_PORT);
 
   startCameraServer();
+
+  // Initialize UART2 AFTER camera server so GPIO 13 pin mux is ours.
+  ArduinoSerial.begin(ARDUINO_BAUD, SERIAL_8N1, ARDUINO_RX_PIN, ARDUINO_TX_PIN);
+  Serial.printf("[Bridge] UART2 → Arduino on TX=GPIO%d RX=GPIO%d @ %u baud\n",
+                ARDUINO_TX_PIN, ARDUINO_RX_PIN, ARDUINO_BAUD);
 
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
@@ -135,9 +146,13 @@ void loop() {
     int len = udp.read(buf, sizeof(buf) - 1);
     if (len > 0) {
       buf[len] = '\0';
-      Serial.print(buf);                 // forward "<ch>,<angle>\n" to Arduino via TX pin
+      Serial.printf("[FWD] %s", buf);    // debug echo on USB serial
+      ArduinoSerial.print(buf);          // forward "<ch>,<angle>\n" to Arduino
     }
   }
 
-  // Arduino OK/ERR responses arrive on RX — visible on USB serial monitor too
+  // Echo Arduino responses (OK/ERR) to USB debug serial
+  while (ArduinoSerial.available()) {
+    Serial.write(ArduinoSerial.read());
+  }
 }
