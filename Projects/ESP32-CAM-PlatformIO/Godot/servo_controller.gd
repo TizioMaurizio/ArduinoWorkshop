@@ -2,13 +2,16 @@ extends Node
 ## Reads XRCamera3D head rotation and sends servo angles to the ESP32-CAM
 ## via UDP. The ESP32 forwards them over Serial2 to the Arduino.
 ##
+## Discovery: listens for UDP broadcast on port 9999 from ESP32-CAM arm,
+## same mechanism as the car controller. Fallback: camera_stream auto-discovery.
+##
 ## Protocol: UDP packet to ESP32_IP:UDP_PORT containing "<ch>,<angle>\n"
 ## Channel 0 = Y rotation (yaw), Channel 3 = X rotation (pitch)
 
 # --- Configurable parameters --------------------------------------------------
 
-## Leave empty to auto-discover from the camera stream node.
-@export var bridge_host: String = ""
+## Leave empty to use auto-discovery (UDP broadcast on port 9999).
+@export var bridge_host: String = "10.192.119.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
 @export var bridge_port: int = 9685
 
 ## Head yaw limits (degrees). Full left → SERVO_MIN, full right → SERVO_MAX.
@@ -32,6 +35,12 @@ extends Node
 ## Per-channel offset in servo degrees (added after mapping).
 @export var ch3_offset_deg: int = -45
 
+# --- Discovery ----------------------------------------------------------------
+## UDP port for auto-discovery broadcast from ESP32 devices.
+const DISCOVERY_PORT: int = 9999
+## How long to wait for discovery before trying camera_stream fallback (seconds).
+@export var discovery_timeout_sec: float = 8.0
+
 # --- Channel assignments -----------------------------------------------------
 const CH_YAW: int = 0
 const CH_PITCH: int = 3
@@ -46,6 +55,11 @@ var _connected: bool = false
 var _calibrated: bool = false
 var _initial_quat: Quaternion = Quaternion.IDENTITY
 
+# --- Discovery state ----------------------------------------------------------
+var _discovery_udp: PacketPeerUDP = PacketPeerUDP.new()
+var _discovery_timer: float = 0.0
+var _discovered: bool = false
+
 func _ready() -> void:
 	_camera = get_node_or_null("../XROrigin3D/XRCamera3D")
 	if _camera == null:
@@ -57,11 +71,23 @@ func _ready() -> void:
 	if vr_main and vr_main.has_signal("pose_recentered"):
 		vr_main.pose_recentered.connect(_on_pose_recentered)
 
-	# If no host set, wait for camera_stream to discover it
-	if bridge_host == "":
-		print("[Servo] Waiting for camera stream to discover ESP32 IP...")
-	else:
+	# If host set, skip discovery and connect directly.
+	if bridge_host != "":
+		print("[Servo] Using configured host: %s" % bridge_host)
+		_discovered = true
 		_connect_udp()
+		return
+
+	# Start UDP discovery listener (same port as car)
+	var err: int = _discovery_udp.bind(DISCOVERY_PORT)
+	if err != OK:
+		printerr("[Servo] Failed to bind UDP discovery port %d (err=%d) — trying camera fallback" % [
+			DISCOVERY_PORT, err
+		])
+		# Port may already be bound by car_controller — fall back to camera_stream
+		_discovered = true  # Skip discovery, rely on camera_stream IP
+	else:
+		print("[Servo] Listening for arm discovery on UDP port %d..." % DISCOVERY_PORT)
 
 
 func _connect_udp() -> void:
@@ -79,7 +105,12 @@ func _process(delta: float) -> void:
 	if _camera == null:
 		return
 
-	# Auto-discover: pick up the IP from camera_stream once it finds one
+	# --- UDP discovery (runs until arm is found) ---
+	if not _discovered:
+		_check_discovery(delta)
+		return
+
+	# Fallback: pick up the IP from camera_stream once it finds one
 	if not _connected:
 		var screen: Node = get_node_or_null("../XROrigin3D/XRCamera3D/Screen")
 		if screen and screen.get("_connected") == true:
@@ -148,3 +179,41 @@ func _map_clamp(value: float, in_min: float, in_max: float,
 func _on_pose_recentered() -> void:
 	_calibrated = false
 	print("[Servo] Pose recentered — will recapture initial angle next frame")
+
+
+## Called by car_controller when it receives an arm discovery broadcast.
+func on_arm_discovered(ip: String, servo_port: int) -> void:
+	if _connected:
+		return  # Already connected
+	bridge_host = ip
+	bridge_port = servo_port
+	_discovered = true
+	_discovery_udp.close()
+	print("[Servo] Arm discovered (via shared listener) at %s:%d" % [bridge_host, bridge_port])
+	_connect_udp()
+
+
+# --- UDP auto-discovery -------------------------------------------------------
+func _check_discovery(delta: float) -> void:
+	# Check for broadcast packets from the arm ESP32-CAM
+	while _discovery_udp.get_available_packet_count() > 0:
+		var data: String = _discovery_udp.get_packet().get_string_from_utf8()
+		var json: Variant = JSON.parse_string(data)
+		if json is Dictionary and json.get("service", "") == "esp32-cam-arm":
+			var ip: String = json.get("ip", "")
+			var servo_port: int = int(json.get("servo", 9685))
+			if ip != "":
+				bridge_host = ip
+				bridge_port = servo_port
+				_discovered = true
+				_discovery_udp.close()
+				print("[Servo] Discovered arm at %s:%d" % [bridge_host, bridge_port])
+				_connect_udp()
+				return
+
+	# Timeout — fall back to camera_stream discovery
+	_discovery_timer += delta
+	if _discovery_timer >= discovery_timeout_sec:
+		print("[Servo] Discovery timeout — falling back to camera stream discovery")
+		_discovered = true  # Let _process fallback logic take over
+		_discovery_udp.close()

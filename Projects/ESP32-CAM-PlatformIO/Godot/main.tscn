@@ -5,6 +5,9 @@
 [ext_resource type="Script" uid="uid://b0axfuolcmtgg" path="res://servo_controller.gd" id="3_servo"]
 [ext_resource type="Shader" uid="uid://dlpalk86c7pk5" path="res://fullscreen_stream.gdshader" id="4_shader"]
 [ext_resource type="Script" path="res://orientation_gizmo.gd" id="5_gizmo"]
+[ext_resource type="Script" path="res://car_controller.gd" id="6_car"]
+[ext_resource type="Script" path="res://joystick_visualizer.gd" id="7_joyvis"]
+[ext_resource type="Script" path="res://test/xr_input_diagnostic.gd" id="8_xrdiag"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -40,6 +43,12 @@ script = ExtResource("2_camstream")
 [node name="OrientationGizmo" type="Node3D" parent="XROrigin3D/XRCamera3D"]
 script = ExtResource("5_gizmo")
 
+[node name="JoystickVisualizer" type="Node3D" parent="XROrigin3D/XRCamera3D"]
+script = ExtResource("7_joyvis")
+
+[node name="XRInputDiag" type="Node3D" parent="XROrigin3D/XRCamera3D"]
+script = ExtResource("8_xrdiag")
+
 [node name="LeftHand" type="XRController3D" parent="XROrigin3D" unique_id=1979745678]
 tracker = &"left_hand"
 
@@ -49,3 +58,6 @@ tracker = &"right_hand"
 [node name="ServoController" type="Node" parent="." unique_id=378602477]
 script = ExtResource("3_servo")
 ch3_offset_deg = 40
+
+[node name="CarController" type="Node" parent="."]
+script = ExtResource("6_car")

@@ -3,7 +3,7 @@ extends MeshInstance3D
 ## Discovery: parallel TCP probes to port 80 /status on each /24 subnet.
 ## Streaming: SOI/EOI JPEG marker scanning via native find(), frame skipping.
 
-@export var esp_ip: String = ""  ## Leave empty for auto-discovery
+@export var esp_ip: String = "10.192.119.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
 @export var esp_port: int = 81
 @export var reconnect_interval: float = 3.0
 

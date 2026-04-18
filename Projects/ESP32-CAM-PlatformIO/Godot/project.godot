@@ -26,7 +26,6 @@ pen_tablet/driver.windows="auto"
 [rendering]
 
 renderer/rendering_method="mobile"
-renderer/rendering_method.mobile="mobile"
 
 [xr]
 
