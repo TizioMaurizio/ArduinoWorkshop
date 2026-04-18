@@ -22,3 +22,12 @@ Desktop.ini
 
 # Scratch / test Godot projects
 Projects/ESP32-CAM-PlatformIO/GodotMinimalXR/
+
+# ELEGOO vendor documentation and reference code (large, not ours)
+Projects/ESP32-CAM-PlatformIO/drone_control/
+
+# Copilot memory (local workspace state, not shared)
+memories/
+
+# Simulation and test scaffolding (generated)
+test/
