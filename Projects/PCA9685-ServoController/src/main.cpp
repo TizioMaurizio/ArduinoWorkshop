@@ -2,19 +2,27 @@
 // Target board: Arduino Uno (ATmega328P)
 // RAM budget: ~1.5 KB usable
 //
-// Serial protocol (115200 baud, 8N1):
+// Serial protocol (9600 baud, 8N1):
 //   Receive: "<channel>,<angle>\n"   channel=0..15, angle=0..180
 //   Reply:   "OK\n" or "ERR:<message>\n"
+//
+// Input sources (both parsed identically):
+//   - USB Serial (Pin 0/1) — for PC testing and debug
+//   - SoftwareSerial on Pin 2 (RX) — from ESP32-CAM GPIO 13
 //
 // PCA9685 I2C address: 0x40 (default), 400 kHz
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <SoftwareSerial.h>
 #include <Adafruit_PWMServoDriver.h>
 
 // --- Configuration -----------------------------------------------------------
 constexpr uint8_t  PCA9685_ADDR       = 0x40;
-constexpr uint32_t SERIAL_BAUD        = 115200;
+constexpr uint32_t SERIAL_BAUD        = 9600;
+constexpr uint32_t ESP_BAUD           = 4800;    // matches ESP32 UART2, low for SoftwareSerial reliability
+constexpr uint8_t  ESP_RX_PIN         = 2;       // Arduino pin 2 ← ESP32 GPIO 13
+constexpr uint8_t  ESP_TX_PIN         = 3;       // not used (no reply to ESP32)
 constexpr uint16_t SERVO_FREQ_HZ      = 50;
 constexpr uint16_t SERVO_PULSE_MIN_US = 500;   // 0 degrees
 constexpr uint16_t SERVO_PULSE_MAX_US = 2500;  // 180 degrees
@@ -26,9 +34,13 @@ constexpr uint8_t  RX_BUF_SIZE        = 16;
 
 // --- Globals -----------------------------------------------------------------
 Adafruit_PWMServoDriver pca(PCA9685_ADDR);
+SoftwareSerial espSerial(ESP_RX_PIN, ESP_TX_PIN);
 
 static char    rx_buf[RX_BUF_SIZE];
 static uint8_t rx_idx = 0;
+static char    esp_buf[RX_BUF_SIZE];
+static uint8_t esp_idx = 0;
+static unsigned long esp_last_byte_ms = 0;
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -68,24 +80,22 @@ static bool parse_and_execute(const char *line) {
     return true;
 }
 
-// Non-blocking serial line reader.  Returns true when a full line is ready.
-static bool serial_readline() {
-    while (Serial.available()) {
-        char c = (char)Serial.read();
+// Non-blocking line reader. Works with any stream + buffer pair.
+static bool readline(Stream &port, char *buf, uint8_t &idx) {
+    while (port.available()) {
+        char c = (char)port.read();
         if (c == '\n' || c == '\r') {
-            if (rx_idx > 0) {
-                rx_buf[rx_idx] = '\0';
-                rx_idx = 0;
+            if (idx > 0) {
+                buf[idx] = '\0';
+                idx = 0;
                 return true;
             }
-            // Ignore empty lines / stray CR/LF
             continue;
         }
-        if (rx_idx < RX_BUF_SIZE - 1) {
-            rx_buf[rx_idx++] = c;
+        if (idx < RX_BUF_SIZE - 1) {
+            buf[idx++] = c;
         } else {
-            // Overflow — discard and reset
-            rx_idx = 0;
+            idx = 0;
             Serial.println(F("ERR:overflow"));
         }
     }
@@ -96,6 +106,7 @@ static bool serial_readline() {
 
 void setup() {
     Serial.begin(SERIAL_BAUD);
+    espSerial.begin(ESP_BAUD);
 
     Wire.begin();
     Wire.setClock(400000UL);  // 400 kHz Fast-mode I2C
@@ -111,10 +122,28 @@ void setup() {
     }
 
     Serial.println(F("PCA9685 ready"));
+    Serial.print(F("ESP RX on pin "));
+    Serial.println(ESP_RX_PIN);
 }
 
 void loop() {
-    if (serial_readline()) {
+    // Read from USB Serial (PC testing)
+    if (readline(Serial, rx_buf, rx_idx)) {
         parse_and_execute(rx_buf);
+    }
+    // Read from ESP32 SoftwareSerial (Pin 2)
+    if (readline(espSerial, esp_buf, esp_idx)) {
+        esp_last_byte_ms = millis();
+        Serial.print(F("[ESP] "));
+        Serial.println(esp_buf);
+        parse_and_execute(esp_buf);
+    }
+    // Watchdog: if SoftwareSerial goes silent for 2s, re-init to clear
+    // any byte-boundary desync
+    if (millis() - esp_last_byte_ms > 2000) {
+        esp_last_byte_ms = millis();
+        esp_idx = 0;
+        espSerial.end();
+        espSerial.begin(ESP_BAUD);
     }
 }
