@@ -24,6 +24,11 @@ const char* password = "earthbound";
 // Protocol: receives "<channel>,<angle>\n" packets, forwards to Arduino serial.
 constexpr uint16_t UDP_PORT = 9685;
 
+// --- UDP discovery broadcast (same protocol as ELEGOO car) -------------------
+constexpr uint16_t DISCOVERY_PORT = 9999;
+constexpr unsigned long DISCOVERY_INTERVAL_MS = 2000;
+WiFiUDP discovery_udp;
+
 // --- Serial2 (UART2): dedicated clean link to Arduino ------------------------
 // GPIO 14/15 are JTAG strapping pins — cause flash/boot glitches when loaded.
 // GPIO 13 is free on AI-Thinker (not camera, not LED, not strapping). Safe.
@@ -126,6 +131,11 @@ void setup() {
   udp.begin(UDP_PORT);
   Serial.printf("[Bridge] UDP listening on port %u\n", UDP_PORT);
 
+  // Start UDP discovery broadcaster
+  discovery_udp.begin(0);  // ephemeral port for sending
+  Serial.printf("[Discovery] Broadcasting on port %u every %lums\n",
+                DISCOVERY_PORT, DISCOVERY_INTERVAL_MS);
+
   startCameraServer();
 
   // Initialize UART2 AFTER camera server so GPIO 13 pin mux is ours.
@@ -139,6 +149,21 @@ void setup() {
 }
 
 void loop() {
+  // --- Discovery broadcast (every 2s) ----------------------------------------
+  static unsigned long last_discovery = 0;
+  if (millis() - last_discovery >= DISCOVERY_INTERVAL_MS) {
+    last_discovery = millis();
+    IPAddress broadcast_ip = WiFi.localIP();
+    broadcast_ip[3] = 255;
+    char buf[128];
+    snprintf(buf, sizeof(buf),
+             "{\"service\":\"esp32-cam-arm\",\"ip\":\"%s\",\"port\":%u,\"servo\":%u,\"cam\":81}",
+             WiFi.localIP().toString().c_str(), 80, UDP_PORT);
+    discovery_udp.beginPacket(broadcast_ip, DISCOVERY_PORT);
+    discovery_udp.print(buf);
+    discovery_udp.endPacket();
+  }
+
   // --- Forward UDP packets from Godot → Arduino serial -----------------------
   int packet_size = udp.parsePacket();
   if (packet_size > 0) {
