@@ -79,10 +79,14 @@ var _udp_cur_frame_len: int = 0
 var _udp_frags: Dictionary = {}
 var _udp_frags_received: int = 0
 var _udp_frame_age: float = 0.0  ## time since first fragment of current frame
+var _udp_stream_age: float = 0.0  ## seconds since stream (re)started
+var _udp_frames_at_start: int = 0  ## _frame_count snapshot when stream started
 
 const _UDP_KEEPALIVE_SEC: float = 2.0
 const _UDP_FRAME_TIMEOUT_SEC: float = 0.5  ## abandon incomplete frame after this
 const _UDP_MAX_FRAME_BYTES: int = 200000  ## skip frames >200KB to avoid stalls
+const _UDP_FIRST_FRAME_TIMEOUT: float = 3.0  ## restart stream if no frame decoded in this time
+const _WARMUP_FRAMES: int = 5  ## discard first N frames after stream start (sensor AEC/AWB stabilization)
 
 # ---------------------------------------------------------------------------
 #  TCP stream state (fallback)
@@ -117,7 +121,7 @@ func _ready() -> void:
 	if esp_ip != "":
 		_show_overlay("Connecting to %s (%s) ..." % [esp_ip, "UDP" if use_udp else "TCP"])
 		_apply_camera_settings()
-		_start_stream()
+		# Stream starts after settings are applied — see _on_settings_complete()
 	else:
 		_begin_discovery()
 
@@ -235,7 +239,7 @@ func _finish_discovery(ip: String) -> void:
 	_discovering = false
 	_set_status("Found ESP32-CAM at %s" % ip)
 	_apply_camera_settings()
-	_start_stream()
+	# Stream starts after settings are applied — see _on_settings_complete()
 
 
 # ===========================================================================
@@ -274,6 +278,8 @@ func _start_udp_stream() -> void:
 	_udp.put_packet("STREAM_UDP".to_utf8_buffer())
 	_udp_keepalive_timer = 0.0
 	_udp_stall_timer = 0.0
+	_udp_stream_age = 0.0
+	_udp_frames_at_start = _frame_count
 	_udp_cur_frame_id = -1
 	_udp_frags.clear()
 	_udp_frags_received = 0
@@ -292,6 +298,16 @@ func _process_udp_stream(delta: float) -> void:
 	if _udp_keepalive_timer >= _UDP_KEEPALIVE_SEC:
 		_udp_keepalive_timer = 0.0
 		_udp.put_packet("STREAM_UDP".to_utf8_buffer())
+
+	# If no frame has been decoded since stream start, restart after 3s.
+	# This catches first-launch stalls where fragments arrive but never
+	# assemble (corrupt sensor output, lost final fragment, etc.).
+	_udp_stream_age += delta
+	if _frame_count == _udp_frames_at_start and _udp_stream_age > _UDP_FIRST_FRAME_TIMEOUT:
+		print("[CameraStream] No frame decoded in %.1fs — restarting UDP stream" % _udp_stream_age)
+		_start_udp_stream()
+		return
+
 	# Age out incomplete frames to prevent stalls
 	if _udp_cur_frame_id >= 0:
 		_udp_frame_age += delta
@@ -515,6 +531,13 @@ func _begin_reconnect_tick(delta: float) -> void:
 # ===========================================================================
 
 func _apply_frame(jpeg_data: PackedByteArray) -> void:
+	# Discard early frames — OV2640 needs several captures after a resolution
+	# change for auto-exposure/white-balance to stabilize (white/corrupt frames).
+	var frames_since_start: int = _frame_count - _udp_frames_at_start
+	if frames_since_start <= _WARMUP_FRAMES:
+		if frames_since_start == 1:
+			print("[CameraStream] Discarding first %d frames (sensor warmup)" % _WARMUP_FRAMES)
+		return
 	var now_usec: int = Time.get_ticks_usec()
 	var min_interval_usec: int = int(1_000_000.0 / max_decode_fps)
 	if (now_usec - _last_decode_usec) < min_interval_usec:
@@ -582,6 +605,7 @@ func _set_status(text: String) -> void:
 
 func _apply_camera_settings() -> void:
 	if esp_ip == "":
+		_on_settings_complete()
 		return
 	_pending_settings.clear()
 	_pending_settings.append("http://%s/control?var=framesize&val=%d" % [esp_ip, int(resolution)])
@@ -593,6 +617,7 @@ func _apply_camera_settings() -> void:
 
 func _send_next_setting() -> void:
 	if _pending_settings.is_empty():
+		_on_settings_complete()
 		return
 	var url: String = _pending_settings[0]
 	var err: int = _http.request(url)
@@ -608,4 +633,12 @@ func _on_resolution_response(result: int, response_code: int, _headers: PackedSt
 		print("[CameraStream] Setting applied: %s" % url)
 	else:
 		print("[CameraStream] Setting failed: %s (result=%d code=%d)" % [url, result, response_code])
-	_send_next_setting()
+	if _pending_settings.is_empty():
+		_on_settings_complete()
+	else:
+		_send_next_setting()
+
+
+func _on_settings_complete() -> void:
+	print("[CameraStream] All settings applied — starting stream")
+	_start_stream()
