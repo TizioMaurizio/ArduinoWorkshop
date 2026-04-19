@@ -117,6 +117,9 @@ static esp_err_t stream_handler(httpd_req_t *req){
     uint8_t * _jpg_buf = NULL;
     char * part_buf[64];
 
+    // --- Frame pacing: target ~12 FPS (83ms per frame) -----------------------
+    static const int64_t TARGET_FRAME_US = 83000;
+
     static int64_t last_frame = 0;
     if(!last_frame) {
         last_frame = esp_timer_get_time();
@@ -130,11 +133,22 @@ static esp_err_t stream_handler(httpd_req_t *req){
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
     while(true){
+        int64_t t0 = esp_timer_get_time();
+
+        // --- Capture phase ---------------------------------------------------
         fb = esp_camera_fb_get();
         if (!fb) {
             Serial.println("Camera capture failed");
             res = ESP_FAIL;
         } else {
+            // If a second buffer is already queued (stale), drop this one and
+            // grab the fresher frame.  Reduces latency after a send stall.
+            camera_fb_t *fb2 = esp_camera_fb_get();
+            if (fb2) {
+                esp_camera_fb_return(fb);  // drop older
+                fb = fb2;
+            }
+
             if(fb->format != PIXFORMAT_JPEG){
                 bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len);
                 esp_camera_fb_return(fb);
@@ -148,6 +162,10 @@ static esp_err_t stream_handler(httpd_req_t *req){
                 _jpg_buf = fb->buf;
             }
         }
+
+        int64_t t_capture = esp_timer_get_time();
+
+        // --- Send phase ------------------------------------------------------
         if(res == ESP_OK){
             size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, _jpg_buf_len);
             res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
@@ -158,6 +176,9 @@ static esp_err_t stream_handler(httpd_req_t *req){
         if(res == ESP_OK){
             res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
         }
+
+        int64_t t_send = esp_timer_get_time();
+
         if(fb){
             esp_camera_fb_return(fb);
             fb = NULL;
@@ -169,16 +190,30 @@ static esp_err_t stream_handler(httpd_req_t *req){
         if(res != ESP_OK){
             break;
         }
+
+        // --- Timing telemetry ------------------------------------------------
         int64_t fr_end = esp_timer_get_time();
         int64_t frame_time = fr_end - last_frame;
         last_frame = fr_end;
-        frame_time /= 1000;
-        uint32_t avg_frame_time = ra_filter_run(&ra_filter, frame_time);
-        Serial.printf("MJPG: %uB %ums (%.1ffps), AVG: %ums (%.1ffps)\n",
-            (uint32_t)(_jpg_buf_len),
-            (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time,
-            avg_frame_time, 1000.0 / avg_frame_time
+
+        uint32_t cap_ms  = (uint32_t)((t_capture - t0) / 1000);
+        uint32_t send_ms = (uint32_t)((t_send - t_capture) / 1000);
+        uint32_t total_ms = (uint32_t)(frame_time / 1000);
+        uint32_t avg_frame_time = ra_filter_run(&ra_filter, total_ms);
+
+        Serial.printf("MJPG: %5uB cap=%3ums send=%3ums total=%3ums (%.1ffps) avg=%ums (%.1ffps)\n",
+            (uint32_t)_jpg_buf_len,
+            cap_ms, send_ms, total_ms,
+            total_ms > 0 ? 1000.0 / total_ms : 0,
+            avg_frame_time,
+            avg_frame_time > 0 ? 1000.0 / avg_frame_time : 0
         );
+
+        // --- Pace to target FPS (yield to Wi-Fi/UDP tasks) -------------------
+        int64_t elapsed = esp_timer_get_time() - t0;
+        if (elapsed < TARGET_FRAME_US) {
+            vTaskDelay(pdMS_TO_TICKS((TARGET_FRAME_US - elapsed) / 1000));
+        }
     }
 
     last_frame = 0;

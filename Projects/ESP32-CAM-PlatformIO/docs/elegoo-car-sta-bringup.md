@@ -255,3 +255,67 @@ Godot VR (PC)
 5. **Camera can be disabled safely.** The motor control TCP bridge works independently of the camera. Disabling camera avoids crashes from wrong pin mappings and saves flash/RAM.
 
 6. **The Arduino UNO firmware doesn't need changes.** The stock ELEGOO firmware on the UNO parses JSON from Serial at 9600 baud regardless of what's on the other end. Replacing only the ESP32 firmware is sufficient to change the networking model.
+
+---
+
+## 14. Arm Servo Not Moving — Godot Troubleshooting (2026-04-19)
+
+### Symptom
+
+Camera video streamed successfully from the ESP32-CAM arm to Godot VR, but head-tracking servo commands had no effect — the robot arm did not move.
+
+### Investigation
+
+**Layer 1 — Network reachability:**
+The phone hotspot (Physical Metaverse 2.4GHz2) had changed its DHCP subnet from `10.192.119.x` to `10.224.248.x` between sessions. A full-subnet TCP scan on the new range found:
+- **Car** at `10.224.248.9` (port 100 open — TCP bridge) ✅
+- **Arm** at `10.224.248.157` (ports 80/81 open — HTTP + MJPEG stream) ✅
+
+Both devices had reconnected to WiFi after a power cycle, but at new DHCP addresses on the new subnet.
+
+**Layer 2 — Firmware UDP→UART pipeline:**
+Sent servo commands directly from Python to the arm ESP32-CAM:
+
+```
+python -c "import socket,time; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); \
+  [s.sendto(f'{ch},{a}\n'.encode(),('10.224.248.157',9685)) or time.sleep(2) \
+   for ch,a in [(0,0),(0,180),(0,90),(3,45),(3,135),(3,90)]]"
+```
+
+Servos on channels 0 (yaw) and 3 (pitch) moved correctly. The full pipeline — PC → UDP → ESP32-CAM (port 9685) → UART GPIO 13 @ 4800 baud → Arduino UNO SoftwareSerial → PCA9685 → servos — was confirmed working.
+
+**Layer 3 — Godot client code:**
+Inspected `Godot/servo_controller.gd` line 14:
+
+```gdscript
+@export var bridge_host: String = "10.192.119.157"  # ← STALE IP
+```
+
+Because `bridge_host` was non-empty, the script skips UDP auto-discovery entirely (line 80: `if bridge_host != "": _connect_udp(); return`) and sends all servo commands to the old subnet address. UDP is connectionless — `connect_to_host()` succeeds silently even when the destination is unreachable. No error is raised; packets are simply lost.
+
+Similarly, `Godot/camera_stream.gd` line 6 had the same stale IP, but its auto-discovery fallback happened to find the arm on the new subnet, which is why video worked while servos didn't.
+
+### Root Cause
+
+Hardcoded IP addresses in two Godot scripts pointed at the previous DHCP subnet. The camera script's discovery fallback masked the problem for video, but the servo script had no such fallback when `bridge_host` is set.
+
+### Fix
+
+Updated both scripts to the current arm IP:
+
+| File | Field | Old | New |
+|------|-------|-----|-----|
+| `Godot/servo_controller.gd:14` | `bridge_host` | `10.192.119.157` | `10.224.248.157` |
+| `Godot/camera_stream.gd:6` | `esp_ip` | `10.192.119.157` | `10.224.248.157` |
+
+### Verification
+
+After restarting Godot with the corrected IPs, head-tracking servo commands reached the arm and servos moved in real time.
+
+### Lesson
+
+7. **UDP is silently lossy.** Unlike TCP, a UDP `connect_to_host()` does not verify reachability. Packets sent to a stale IP vanish without error. Always verify the destination is alive (e.g., with a discovery handshake or periodic health check) before assuming UDP delivery.
+
+8. **Hardcoded IPs break on DHCP subnet changes.** Phone hotspots frequently reassign subnets. Prefer auto-discovery (UDP broadcast listener on port 9999) over static IPs. If a static IP must be used, document that it will need updating when the network changes.
+
+9. **Isolate layers when diagnosing.** Testing the firmware pipeline with Python (bypassing Godot) immediately proved the servos worked. This narrowed the fault to the Godot client in one step, avoiding a lengthy firmware debugging detour.

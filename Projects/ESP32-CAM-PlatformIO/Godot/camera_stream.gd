@@ -1,11 +1,13 @@
 extends MeshInstance3D
 ## Auto-discovers ESP32-CAM on all local subnets, then streams MJPEG.
 ## Discovery: parallel TCP probes to port 80 /status on each /24 subnet.
-## Streaming: SOI/EOI JPEG marker scanning via native find(), frame skipping.
+## Streaming: SOI/EOI JPEG marker scanning, latest-frame-only, decode-throttled.
 
-@export var esp_ip: String = "10.192.119.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
+@export var esp_ip: String = "10.224.248.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
 @export var esp_port: int = 81
 @export var reconnect_interval: float = 3.0
+## Max decode rate (Hz). Frames arriving faster are dropped before decode.
+@export var max_decode_fps: float = 12.0
 
 # ---------------------------------------------------------------------------
 #  Discovery state
@@ -38,7 +40,12 @@ var _shader_mat: ShaderMaterial = null
 var _frame_count: int = 0
 var _overlay_label: Label = null
 
-const _MAX_BUF: int = 524288
+# ---------------------------------------------------------------------------
+#  Decode throttle — drop frames that arrive faster than max_decode_fps
+# ---------------------------------------------------------------------------
+var _last_decode_usec: int = 0
+
+const _MAX_BUF: int = 65536  # ~5 QVGA frames — keeps scanning fast
 const _CONNECT_TIMEOUT: float = 5.0
 const _STALL_TIMEOUT: float = 8.0
 const _DIRECT_RETRY_WINDOW: float = 10.0  # retry same IP for 10s before rediscovery
@@ -356,11 +363,16 @@ func _find_crlfcrlf(from: int) -> int:
 
 
 func _apply_frame(jpeg_data: PackedByteArray) -> void:
+	# Throttle: skip decode if we're above max_decode_fps
+	var now_usec: int = Time.get_ticks_usec()
+	var min_interval_usec: int = int(1_000_000.0 / max_decode_fps)
+	if (now_usec - _last_decode_usec) < min_interval_usec:
+		return  # drop this frame — too soon since last decode
+	_last_decode_usec = now_usec
+
 	var image := Image.new()
 	var err := image.load_jpg_from_buffer(jpeg_data)
 	if err != OK:
-		if _frame_count < 5:
-			print("[CameraStream] JPEG decode failed: ", err, " size=", jpeg_data.size())
 		return
 
 	if _texture == null:

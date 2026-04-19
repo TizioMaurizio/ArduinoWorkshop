@@ -11,7 +11,7 @@ extends Node
 # --- Configurable parameters --------------------------------------------------
 
 ## Leave empty to use auto-discovery (UDP broadcast on port 9999).
-@export var bridge_host: String = "10.192.119.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
+@export var bridge_host: String = "10.224.248.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
 @export var bridge_port: int = 9685
 
 ## Head yaw limits (degrees). Full left → SERVO_MIN, full right → SERVO_MAX.

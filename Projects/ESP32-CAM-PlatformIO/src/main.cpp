@@ -103,6 +103,9 @@ void setup() {
   }
   //drop down frame size for higher initial frame rate
   s->set_framesize(s, FRAMESIZE_QVGA);
+  // Lower runtime JPEG quality (higher number = more compression = smaller
+  // frames). Reduces WiFi pressure and capture-to-send latency.
+  s->set_quality(s, 15);
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE)
   s->set_vflip(s, 1);
