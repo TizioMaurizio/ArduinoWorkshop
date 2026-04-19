@@ -4,10 +4,10 @@
 [ext_resource type="Script" uid="uid://cll0jy8cxd7tg" path="res://camera_stream.gd" id="2_camstream"]
 [ext_resource type="Script" uid="uid://b0axfuolcmtgg" path="res://servo_controller.gd" id="3_servo"]
 [ext_resource type="Shader" uid="uid://dlpalk86c7pk5" path="res://fullscreen_stream.gdshader" id="4_shader"]
-[ext_resource type="Script" path="res://orientation_gizmo.gd" id="5_gizmo"]
-[ext_resource type="Script" path="res://car_controller.gd" id="6_car"]
-[ext_resource type="Script" path="res://joystick_visualizer.gd" id="7_joyvis"]
-[ext_resource type="Script" path="res://test/xr_input_diagnostic.gd" id="8_xrdiag"]
+[ext_resource type="Script" uid="uid://bi7u75v1nv0gc" path="res://orientation_gizmo.gd" id="5_gizmo"]
+[ext_resource type="Script" uid="uid://bru81p76smahe" path="res://car_controller.gd" id="6_car"]
+[ext_resource type="Script" uid="uid://dujma38rx84pt" path="res://joystick_visualizer.gd" id="7_joyvis"]
+[ext_resource type="Script" uid="uid://2afp58y4qbwj" path="res://test/xr_input_diagnostic.gd" id="8_xrdiag"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -24,6 +24,7 @@ subdivide_depth = 1
 [sub_resource type="ShaderMaterial" id="ShaderMat_1"]
 render_priority = 0
 shader = ExtResource("4_shader")
+shader_parameter/screen_scale = 1.0
 
 [node name="Main" type="Node3D" unique_id=91317648]
 script = ExtResource("1_vrmain")
@@ -39,14 +40,17 @@ environment = SubResource("Environment_1")
 mesh = SubResource("QuadMesh_1")
 surface_material_override/0 = SubResource("ShaderMat_1")
 script = ExtResource("2_camstream")
+reconnect_interval = 20.0
+resolution = 3
+screen_scale = 0.30000000000000004
 
-[node name="OrientationGizmo" type="Node3D" parent="XROrigin3D/XRCamera3D"]
+[node name="OrientationGizmo" type="Node3D" parent="XROrigin3D/XRCamera3D" unique_id=2139766202]
 script = ExtResource("5_gizmo")
 
-[node name="JoystickVisualizer" type="Node3D" parent="XROrigin3D/XRCamera3D"]
+[node name="JoystickVisualizer" type="Node3D" parent="XROrigin3D/XRCamera3D" unique_id=1112099929]
 script = ExtResource("7_joyvis")
 
-[node name="XRInputDiag" type="Node3D" parent="XROrigin3D/XRCamera3D"]
+[node name="XRInputDiag" type="Node3D" parent="XROrigin3D/XRCamera3D" unique_id=440827784]
 script = ExtResource("8_xrdiag")
 
 [node name="LeftHand" type="XRController3D" parent="XROrigin3D" unique_id=1979745678]
@@ -59,5 +63,7 @@ tracker = &"right_hand"
 script = ExtResource("3_servo")
 ch3_offset_deg = 40
 
-[node name="CarController" type="Node" parent="."]
+[node name="CarController" type="Node" parent="." unique_id=1887313049]
 script = ExtResource("6_car")
+max_speed = 80
+max_rotation_speed = 40
