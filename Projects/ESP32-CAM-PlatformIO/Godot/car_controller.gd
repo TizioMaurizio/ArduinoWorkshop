@@ -18,10 +18,10 @@ extends Node
 @export var car_port: int = 100
 
 ## Maximum motor speed sent to the car (0–255). Keep low for gentle control.
-@export var max_speed: int = 80
+@export var max_speed: int = 40
 
-## Maximum rotation speed for left/right turns (0–255).
-@export var max_turn_speed: int = 40
+## Maximum rotation speed for left/right turns (0–255). Separate from drive speed.
+@export var max_rotation_speed: int = 30
 
 ## Joystick deadband — ignore stick deflection below this threshold.
 @export var deadband: float = 0.15
@@ -196,7 +196,7 @@ func _process(delta: float) -> void:
 		else:
 			_send_move(DIR_BACKWARD, speed)
 	elif absf(joy.x) > 0.0:
-		var speed: int = int(absf(joy.x) * float(max_turn_speed))
+		var speed: int = int(absf(joy.x) * float(max_rotation_speed))
 		if joy.x > 0.0:
 			_send_move(DIR_RIGHT, speed)
 		else:
