@@ -351,4 +351,165 @@ Arduino → USB:   Serial 9600 "[ESP] <channel>,<angle>\n" + "OK\n" or "ERR:...\
 
 ---
 
-*The robot arm now moves with the human's head. The camera sees what the arm sees. The loop is closed.*
+## 12. Phase 6: UDP JPEG Stream — Replacing TCP MJPEG
+
+### 12.1 Problem
+
+The TCP MJPEG stream on port 81 worked but added latency from TCP retransmissions and head-of-line blocking. For VR embodiment, every millisecond of video delay erodes the sense of presence. UDP with fragmented JPEGs is a better fit: drop a packet, drop a frame, move on.
+
+### 12.2 Discovery: The Code Was Gone
+
+After a backup restore, the UDP stream code was missing from `main.cpp` — the firmware on disk had **no UDP stream implementation**. Verified by:
+1. Searching `main.cpp` for `UDP_STREAM_PORT` → not found
+2. Running `mock_godot_client.py` against the live ESP32 → port 82 got no response
+3. Comparing against `camera_stream.gd` which expected the protocol → client-side existed, server-side didn't
+
+### 12.3 Implementation
+
+Added a FreeRTOS task pinned to core 0 (`udp_stream_task`) with separated sockets:
+
+| Socket | Core | Role |
+|--------|------|------|
+| `udp_stream_rx` | Core 1 (loop) | Receives `STREAM_UDP`/`STREAM_STOP` commands |
+| `udp_stream_tx` | Core 0 (task) | Sends JPEG fragments to registered client |
+
+**Why separate sockets?** `WiFiUDP` is not thread-safe. Sharing one socket between `loop()` (core 1) and the stream task (core 0) caused silent packet corruption. Two sockets, one per core, eliminated the race.
+
+**Fragment protocol** (8-byte header + ≤1400B payload):
+```
+Offset  Size  Field
+0       2     frame_id   (u16 LE) — wrapping counter
+2       1     frag_idx   (u8)     — 0-based fragment index
+3       1     frag_count (u8)     — total fragments in frame
+4       4     frame_len  (u32 LE) — total JPEG size in bytes
+8+      ≤1400 payload             — raw JPEG bytes
+```
+
+Client sends `"STREAM_UDP"` to register and resends every 2s as keepalive. Server times out after 5s of silence.
+
+**Stale frame handling:** With `fb_count=2`, the camera double-buffers. If a frame is >200ms old (measured via `esp_timer_get_time()` vs `fb->timestamp`), it's returned and a fresh one captured.
+
+### 12.4 Verification
+
+Built with PlatformIO (RAM 18.3%, Flash 28.3%). Flashed via esptool. Tested all three protocols with `mock_godot_client.py`:
+
+```
+Protocol        Result    Detail
+TCP :80/status  PASS      HTTP 200, JSON response
+TCP :81 MJPEG   PASS      12.2 FPS (61 frames / 5s)
+UDP :82 stream  PASS      10.8 FPS (54 frames / 5s)
+```
+
+### 12.5 Files Changed
+
+| File | Change |
+|------|--------|
+| `src/main.cpp` | Added `udp_stream_task`, `udp_stream_rx`/`udp_stream_tx` sockets, stream command handling in `loop()`, discovery JSON now includes `udp_cam:82` |
+| `Godot/camera_stream.gd` | Fixed IP to `10.224.248.157`, `use_udp = true` default, fixed tab indentation (was stripped by PowerShell heredoc) |
+
+---
+
+## 13. Phase 7: UART Buffer Overflow — Servo Stops After 5 Seconds
+
+### 13.1 Symptom
+
+After fixing the IP in `servo_controller.gd` (was stale `10.192.119.157` from a previous DHCP lease), the arm responded to head movement — but **stopped after ~5 seconds**. Godot's `[Servo] TX:` diagnostic logs confirmed packets were still being sent. The ESP32 was still receiving them. But the Arduino stopped getting commands.
+
+### 13.2 Root Cause
+
+Two bugs compounding:
+
+1. **Single-packet read per loop iteration.** The servo forwarding code called `udp.parsePacket()` once per `loop()` pass with an `if`, not a `while`. At 20 Hz × 2 channels = 40 packets/sec, and `loop()` also handling discovery broadcasts and stream commands, the UDP receive buffer accumulated a backlog.
+
+2. **No UART TX drain.** `ArduinoSerial.print()` writes to a 128-byte hardware TX buffer and returns immediately. At 4800 baud, a 6-byte command takes ~12ms to transmit. Without waiting for the TX buffer to drain, consecutive commands overwrote each other when the buffer filled faster than UART could clock them out.
+
+The combination meant: packets queued up in UDP → forwarded faster than UART could send → UART TX buffer overflowed → Arduino received corrupted partial commands → stopped responding → ESP32 kept forwarding into the void.
+
+### 13.3 Fix
+
+Two changes in `loop()`:
+
+```cpp
+// BEFORE (broken):
+int packet_size = udp.parsePacket();
+if (packet_size > 0) {
+    // read and forward ONE packet
+}
+
+// AFTER (fixed):
+int packet_size = udp.parsePacket();
+while (packet_size > 0) {
+    // read and forward packet
+    ArduinoSerial.print(buf);
+    ArduinoSerial.flush();  // block until UART TX buffer drains
+    packet_size = udp.parsePacket();  // check for more
+}
+```
+
+- `while` loop drains all pending UDP packets per `loop()` pass
+- `ArduinoSerial.flush()` blocks until the UART TX hardware register is empty, preventing buffer overflow
+
+### 13.4 Trade-off
+
+`flush()` is blocking — each 6-byte command at 4800 baud blocks for ~12ms. At 40 packets/sec worst case, that's 480ms/sec of blocking. This is acceptable because:
+- The servo `loop()` runs on core 1; the camera stream task runs on core 0 — no impact on video
+- Discovery broadcasts are non-critical (2s interval, missing one is fine)
+- The alternative (buffer overflow → arm stops) is worse
+
+### 13.5 Endurance Test
+
+Created `Godot/test/servo_stress_test.py` — a mock Godot client sending sine-wave servo sweeps at 20 Hz for 60 seconds:
+
+```
+Run 1:  1928 packets / 60.0s  (32.1 pkt/s)  errors=0  PASS
+Run 2:  1930 packets / 60.0s  (32.2 pkt/s)  errors=0  PASS
+```
+
+Confirmed by physical observation: arm swept continuously through full range for the entire 60 seconds without stopping. Verified working from Godot VR as well.
+
+### 13.6 Files Changed
+
+| File | Change |
+|------|--------|
+| `src/main.cpp` | `if` → `while` for packet drain, added `ArduinoSerial.flush()` |
+| `Godot/servo_controller.gd` | Fixed `bridge_host` IP to `10.224.248.157`, added diagnostic `[Servo] TX:` logging |
+| `Godot/test/servo_stress_test.py` | New: 60s endurance test script |
+
+---
+
+## 14. Updated Reliability Table
+
+| Test | Protocol | Result |
+|------|----------|--------|
+| ESP32 UDP→debug echo (isolated) | UART0 115200 | 29/29 (100%) |
+| Arduino USB direct | USB 9600 | 12/12 (100%) |
+| Full chain, Pin 2, 4800 baud | SoftwareSerial | 20/20 (100%) |
+| UDP JPEG stream (TCP fallback) | TCP :81 MJPEG | 12.2 FPS |
+| UDP JPEG stream (primary) | UDP :82 fragments | 10.8 FPS |
+| **Servo endurance (60s, 20Hz)** | **UDP → UART 4800** | **1930/1930 (100%)** |
+| **VR embodiment (Godot + Quest 2)** | **Full stack** | **Continuous** |
+
+---
+
+## 15. Current Flash Procedure
+
+The ESP32-CAM now has a dedicated USB-serial connection (no longer through Arduino passthrough), simplifying flashing:
+
+```powershell
+# 1. Ground IO0, press RESET
+# 2. Flash:
+esptool.py --chip esp32 --port COM4 --baud 115200 `
+  --before no_reset write_flash -z `
+  --flash_mode dio --flash_freq keep --flash_size 4MB `
+  0x1000 .pio\build\esp32cam\bootloader.bin `
+  0x8000 .pio\build\esp32cam\partitions.bin `
+  0xe000 boot_app0.bin `
+  0x10000 .pio\build\esp32cam\firmware.bin
+# 3. Disconnect IO0 from GND, press RESET to boot
+```
+
+Note: `--no-stub --no-compress` flags are no longer needed when using a direct USB-serial connection instead of the Arduino passthrough.
+
+---
+
+*The robot arm moves with the human's head. The camera streams to VR over UDP. The servo link survives indefinitely. The loop is closed — and it stays closed.*
