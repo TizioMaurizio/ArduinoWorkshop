@@ -54,6 +54,7 @@ var _last_pitch_angle: int = -1
 var _connected: bool = false
 var _calibrated: bool = false
 var _initial_quat: Quaternion = Quaternion.IDENTITY
+var _diag_timer: float = 0.0
 
 # --- Discovery state ----------------------------------------------------------
 var _discovery_udp: PacketPeerUDP = PacketPeerUDP.new()
@@ -134,7 +135,7 @@ func _process(delta: float) -> void:
 	if not _calibrated:
 		_initial_quat = quat
 		_calibrated = true
-		print("[Servo] Initial head quaternion captured")
+		print("[Servo] Initial head quaternion captured: ", quat)
 
 	# Relative rotation from initial pose — purely in quaternion space
 	var rel_quat: Quaternion = _initial_quat.inverse() * quat
@@ -153,6 +154,15 @@ func _process(delta: float) -> void:
 									  servo_min_angle, servo_max_angle)
 	pitch_servo = clampi(pitch_servo + ch3_offset_deg, servo_min_angle, servo_max_angle)
 
+	# Diagnostic: log every 2s to confirm we reach this point
+	_diag_timer += delta
+	if _diag_timer >= 2.0:
+		_diag_timer = 0.0
+		print("[Servo] yaw=%.1f° pitch=%.1f° → servo yaw=%d pitch=%d  last=[%d,%d]  connected=%s" % [
+			yaw_deg, pitch_deg, yaw_servo, pitch_servo,
+			_last_yaw_angle, _last_pitch_angle, str(_connected)
+		])
+
 	# Only send if angle changed beyond deadband
 	if absi(yaw_servo - _last_yaw_angle) >= int(deadband_deg):
 		_send_angle(CH_YAW, yaw_servo)
@@ -165,7 +175,11 @@ func _process(delta: float) -> void:
 
 func _send_angle(channel: int, angle: int) -> void:
 	var msg: String = "%d,%d\n" % [channel, angle]
-	_udp.put_packet(msg.to_utf8_buffer())
+	var err: int = _udp.put_packet(msg.to_utf8_buffer())
+	if err != OK:
+		print("[Servo] put_packet error: %d for '%s'" % [err, msg.strip_edges()])
+	else:
+		print("[Servo] TX: %s" % msg.strip_edges())
 
 
 ## Clamp input to [in_min, in_max], linearly map to [out_min, out_max], return int.
