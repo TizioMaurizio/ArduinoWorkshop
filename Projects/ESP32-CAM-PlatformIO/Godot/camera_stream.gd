@@ -23,7 +23,9 @@ enum CamResolution {
 	UXGA_1600x1200 = 12,
 }
 
-@export var esp_ip: String = "10.224.248.157"
+signal esp_reconnecting(ip: String)  ## Emitted when stream stalls and we restart handshake
+
+@export var esp_ip: String = ""  ## Leave empty for auto-discovery
 @export var esp_port_tcp: int = 81
 @export var esp_port_udp: int = 82
 @export var use_udp: bool = true  ## true=UDP fragments (default), false=TCP MJPEG
@@ -42,8 +44,13 @@ enum CamResolution {
 # ---------------------------------------------------------------------------
 const _PROBE_BATCH: int = 32
 const _PROBE_TIMEOUT: float = 2.0
+const _BROADCAST_DISCOVERY_TIMEOUT: float = 6.0  ## try broadcast first, then fall back to TCP scan
+const DISCOVERY_PORT: int = 9999  ## UDP broadcast port for auto-discovery
 
 var _discovering: bool = false
+var _discovery_phase: String = "broadcast"  ## "broadcast" → "tcp_scan"
+var _discovery_udp: PacketPeerUDP = null
+var _discovery_broadcast_timer: float = 0.0
 var _subnets: Array[String] = []
 var _probe_ip_idx: int = 1
 var _probe_subnet_idx: int = 0
@@ -64,7 +71,7 @@ var _in_direct_retry: bool = false
 var _last_decode_usec: int = 0
 
 const _CONNECT_TIMEOUT: float = 5.0
-const _STALL_TIMEOUT: float = 8.0
+const _STALL_TIMEOUT: float = 1.0  ## ESP32 may have rebooted — fast reconnect
 const _DIRECT_RETRY_WINDOW: float = 10.0
 
 # ---------------------------------------------------------------------------
@@ -142,6 +149,55 @@ func _process(delta: float) -> void:
 func _begin_discovery() -> void:
 	_stop_stream()
 	_discovering = true
+	_discovered_ip = ""
+	_discovery_phase = "broadcast"
+	_discovery_broadcast_timer = 0.0
+	# Try UDP broadcast first — ESP32-CAM broadcasts its IP every 2s on port 9999
+	_discovery_udp = PacketPeerUDP.new()
+	var err: int = _discovery_udp.bind(DISCOVERY_PORT)
+	if err != OK:
+		# Port may be held by car_controller — skip straight to TCP scan
+		print("[Discovery] Cannot bind port %d (err=%d) — trying TCP scan" % [DISCOVERY_PORT, err])
+		_discovery_udp = null
+		_begin_tcp_scan()
+	else:
+		_set_status("Listening for ESP32-CAM broadcast...")
+		print("[Discovery] Listening for broadcast on port %d (%.0fs timeout)" % [
+			DISCOVERY_PORT, _BROADCAST_DISCOVERY_TIMEOUT])
+
+
+func _process_discovery(delta: float) -> void:
+	if _discovery_phase == "broadcast":
+		_process_broadcast_discovery(delta)
+	else:
+		_process_tcp_scan(delta)
+
+
+func _process_broadcast_discovery(delta: float) -> void:
+	if _discovery_udp == null:
+		_begin_tcp_scan()
+		return
+	# Check for broadcast packets
+	while _discovery_udp.get_available_packet_count() > 0:
+		var data: String = _discovery_udp.get_packet().get_string_from_utf8()
+		var json: Variant = JSON.parse_string(data)
+		if json is Dictionary and json.get("service", "") == "esp32-cam-arm":
+			var ip: String = json.get("ip", "")
+			if ip != "":
+				_discovery_udp.close()
+				_discovery_udp = null
+				_finish_discovery(ip)
+				return
+	_discovery_broadcast_timer += delta
+	if _discovery_broadcast_timer >= _BROADCAST_DISCOVERY_TIMEOUT:
+		print("[Discovery] No broadcast received — falling back to TCP scan")
+		_discovery_udp.close()
+		_discovery_udp = null
+		_begin_tcp_scan()
+
+
+func _begin_tcp_scan() -> void:
+	_discovery_phase = "tcp_scan"
 	_subnets.clear()
 	_probes.clear()
 	_probe_ip_idx = 1
@@ -164,7 +220,7 @@ func _begin_discovery() -> void:
 		_set_status("No network interfaces found")
 		return
 	var subnet_list := ", ".join(_subnets)
-	print("[Discovery] Subnets to scan: ", subnet_list)
+	print("[Discovery] TCP scan subnets: ", subnet_list)
 	_set_status("Scanning %d subnet(s): %s ..." % [_subnets.size(), subnet_list])
 	_launch_probe_batch()
 
@@ -184,7 +240,7 @@ func _launch_probe_batch() -> void:
 			_probe_subnet_idx += 1
 
 
-func _process_discovery(delta: float) -> void:
+func _process_tcp_scan(delta: float) -> void:
 	var to_remove: Array[int] = []
 	for i in range(_probes.size()):
 		var p: Dictionary = _probes[i]
@@ -327,11 +383,11 @@ func _process_udp_stream(delta: float) -> void:
 	else:
 		_udp_stall_timer += delta
 		if _udp_stall_timer > _STALL_TIMEOUT:
-			_set_status("UDP stream stalled")
-			_udp.close()
-			_udp = null
-			_connected = false
-			_begin_reconnect()
+			# ESP32 likely rebooted — full handshake: re-apply settings, then restart stream.
+			print("[CameraStream] Stream stalled for %.1fs — assuming ESP32 reboot, restarting handshake" % _udp_stall_timer)
+			_stop_stream()
+			esp_reconnecting.emit(esp_ip)
+			_apply_camera_settings()
 
 
 func _process_udp_fragment(pkt: PackedByteArray) -> void:

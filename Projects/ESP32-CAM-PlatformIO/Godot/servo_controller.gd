@@ -11,7 +11,7 @@ extends Node
 # --- Configurable parameters --------------------------------------------------
 
 ## Leave empty to use auto-discovery (UDP broadcast on port 9999).
-@export var bridge_host: String = "10.224.248.157"  ## Arm ESP32-CAM (DHCP — rescan if changed)
+@export var bridge_host: String = ""  ## Leave empty for auto-discovery via UDP broadcast
 @export var bridge_port: int = 9685
 
 ## Head yaw limits (degrees). Full left → SERVO_MIN, full right → SERVO_MAX.
@@ -71,6 +71,12 @@ func _ready() -> void:
 	var vr_main: Node = get_node_or_null("../")
 	if vr_main and vr_main.has_signal("pose_recentered"):
 		vr_main.pose_recentered.connect(_on_pose_recentered)
+
+	# Listen for stream reconnect signal (ESP32 reboot detection)
+	var screen: Node = get_node_or_null("../XROrigin3D/XRCamera3D/Screen")
+	if screen and screen.has_signal("esp_reconnecting"):
+		screen.esp_reconnecting.connect(_on_esp_reconnecting)
+		print("[Servo] Listening for ESP32 reconnect signal from camera stream")
 
 	# If host set, skip discovery and connect directly.
 	if bridge_host != "":
@@ -193,6 +199,13 @@ func _map_clamp(value: float, in_min: float, in_max: float,
 func _on_pose_recentered() -> void:
 	_calibrated = false
 	print("[Servo] Pose recentered — will recapture initial angle next frame")
+
+
+func _on_esp_reconnecting(ip: String) -> void:
+	print("[Servo] ESP32 reconnecting at %s — re-establishing UDP" % ip)
+	bridge_host = ip
+	_discovered = true
+	_connect_udp()
 
 
 ## Called by car_controller when it receives an arm discovery broadcast.
