@@ -1,5 +1,21 @@
 # ArduinoWorkshop
 
+> **Featured: [ESP32-CAM Robot Arm Car — VR Teleoperation](Projects/ESP32-CAM-PlatformIO/README.md)**
+> Drive a robot car with a camera arm from a Quest 2 headset. Head tracking controls the arm, joystick drives the car.
+
+<p align="center">
+  <img src="Projects/ESP32-CAM-PlatformIO/photo_2026-04-20_02-25-38.jpg" width="40%" />
+  <img src="Projects/ESP32-CAM-PlatformIO/photo_2026-04-20_02-25-39.jpg" width="40%" />
+</p>
+
+<p align="center">
+  <video src="Projects/ESP32-CAM-PlatformIO/robot-arm-car-demo.webm" width="80%" autoplay loop muted>
+    Your browser does not support the video tag.
+  </video>
+</p>
+
+---
+
 Welcome to the Arduino Workshop, here you can view and share Arduino source codes and projects which will be assembled tested on TizioMaurizio's Elegoo Uno R3 Arduino board.
 
 //////////////////////////////README WORK IN PROGRESS//////////////////////////////
