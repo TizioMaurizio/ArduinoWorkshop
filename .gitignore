@@ -5,6 +5,18 @@
 __pycache__/
 *.pyc
 
+# Python virtual environments
+.venv/
+
+# Runtime logs
+logs/
+
+# Pytest cache
+.pytest_cache/
+
+# Local config (contains real serial port / baud — use config.example.yaml)
+config.yaml
+
 # IDE / editor
 .vscode/
 

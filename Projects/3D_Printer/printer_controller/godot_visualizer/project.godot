@@ -1,0 +1,17 @@
+; Engine configuration file.
+; Godot 4.x read-only 3D printer state visualizer.
+; Connects to Python backend via WebSocket — does NOT control the printer.
+
+config_version=5
+
+[application]
+
+config/name="PrinterVisualizer"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

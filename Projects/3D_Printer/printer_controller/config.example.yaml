@@ -1,0 +1,37 @@
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+printer:
+  name: "generic_marlin_fdm"
+  baud_candidates: [115200, 250000]
+
+  bed:
+    x_min: 0
+    x_max: 220
+    y_min: 0
+    y_max: 220
+    z_min: 0
+    z_max: 250
+
+  extruder:
+    cold_extrusion_allowed: false
+    minimum_extrude_temp_c: 180
+
+  jog:
+    xy_step_mm: 1.0
+    z_step_mm: 0.1
+    e_step_mm: 1.0
+    feedrate_xy: 3000
+    feedrate_z: 300
+    feedrate_e: 120
+
+  safety:
+    allow_unhomed_relative_jog: true
+    require_homing_for_absolute_moves: true
+    max_jog_rate_hz: 5
+    locked_after_error: true
+
+  serial:
+    timeout_s: 2.0
+    write_timeout_s: 2.0

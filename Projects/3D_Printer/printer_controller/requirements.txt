@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pyserial
+pydantic
+pyyaml
+pytest
+pytest-asyncio
+httpx
+rich
