@@ -23,6 +23,7 @@ from .gcode import (
     get_temperature,
     home_all,
     home_axis,
+    move_absolute,
     move_relative,
 )
 from .printer_state import ThreadSafeState
@@ -30,6 +31,52 @@ from .safety import SafetyValidator
 from .serial_worker import SerialWorker, list_serial_ports, list_serial_ports_detailed
 
 logger = logging.getLogger("app")
+
+# ---------------------------------------------------------------------------
+# Thread-safe target position (set by React, consumed by follower loop)
+# ---------------------------------------------------------------------------
+
+import threading
+
+class TargetPosition:
+    """Stores the desired absolute position sent by the React visualizer."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._x: float | None = None
+        self._y: float | None = None
+        self._z: float | None = None
+        self._dirty = False  # True = new target received since last consume
+
+    def set(self, x: float | None, y: float | None, z: float | None) -> None:
+        with self._lock:
+            if x is not None:
+                self._x = x
+            if y is not None:
+                self._y = y
+            if z is not None:
+                self._z = z
+            self._dirty = True
+
+    def consume(self) -> tuple[float | None, float | None, float | None, bool]:
+        """Return (x, y, z, was_dirty) and clear the dirty flag."""
+        with self._lock:
+            dirty = self._dirty
+            self._dirty = False
+            return self._x, self._y, self._z, dirty
+
+    @property
+    def is_dirty(self) -> bool:
+        """Check if there's a pending target without consuming it."""
+        with self._lock:
+            return self._dirty
+
+    def clear(self) -> None:
+        with self._lock:
+            self._x = None
+            self._y = None
+            self._z = None
+            self._dirty = False
 
 # ---------------------------------------------------------------------------
 # WebSocket client registry
@@ -97,12 +144,34 @@ def create_app(
 ) -> FastAPI:
     """Build and return the FastAPI application."""
 
+    target = TargetPosition()
+
+    # Minimum distance (mm) before we bother sending a new absolute move
+    FOLLOW_DEADBAND_MM = 0.1
+    # How often the follower loop checks for a new target (seconds)
+    FOLLOW_TICK_S = 0.10
+    # Feedrate for follower moves — high so printer reaches target before
+    # the next tick arrives, preventing Marlin planner accumulation.
+    # F12000 = 200mm/s; at 100ms tick that's 20mm max per segment.
+    FOLLOW_FEEDRATE = 12000
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-        # Start the state-broadcast loop
-        task = asyncio.create_task(_state_broadcast_loop(state))
+        # Start the state-broadcast loop and target-follower loop
+        broadcast_task = asyncio.create_task(_state_broadcast_loop(state))
+        follower_task = asyncio.create_task(
+            _target_follower_loop(
+                target, state, worker, safety, config,
+                FOLLOW_DEADBAND_MM, FOLLOW_TICK_S, FOLLOW_FEEDRATE,
+            )
+        )
+        position_task = asyncio.create_task(
+            _position_poll_loop(state, worker)
+        )
         yield
-        task.cancel()
+        broadcast_task.cancel()
+        follower_task.cancel()
+        position_task.cancel()
 
     app = FastAPI(title="3D Printer Controller", lifespan=lifespan)
 
@@ -245,9 +314,19 @@ def create_app(
             }
             await ws.send_text(json.dumps(init))
 
-            # Keep alive — read messages (none expected from Godot)
+            # Read messages — React sends target position updates
             while True:
-                await ws.receive_text()
+                text = await ws.receive_text()
+                try:
+                    msg = json.loads(text)
+                    if msg.get("type") == "target":
+                        target.set(
+                            msg.get("x"),
+                            msg.get("y"),
+                            msg.get("z"),
+                        )
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
         except WebSocketDisconnect:
             pass
         finally:
@@ -266,3 +345,122 @@ async def _state_broadcast_loop(state: ThreadSafeState) -> None:
         if v != last_version and _ws_clients:
             last_version = v
             await broadcast_state(state)
+
+
+async def _target_follower_loop(
+    target: TargetPosition,
+    state: ThreadSafeState,
+    worker: SerialWorker,
+    safety: SafetyValidator,
+    config: AppConfig,
+    deadband_mm: float,
+    tick_s: float,
+    feedrate: int = 12000,
+) -> None:
+    """Periodically send G1 to track the latest target position.
+
+    Key design choices:
+    - Compares against the LAST SENT position, not M114 actual (which lags)
+    - Uses send_latest() so only the freshest G1 is pending in serial
+    - G90 sent once; M114 handled by a separate poll loop
+    - High feedrate (F12000=200mm/s) so printer reaches target within one tick,
+      preventing Marlin planner buffer accumulation
+    """
+    loop = asyncio.get_event_loop()
+    g90_sent = False
+
+    # Track what we last sent — avoids comparing against stale M114
+    last_sent_x: float = 0.0
+    last_sent_y: float = 0.0
+    last_sent_z: float = 0.0
+
+    while True:
+        await asyncio.sleep(tick_s)
+
+        tx, ty, tz, dirty = target.consume()
+        if not dirty:
+            continue
+
+        snap = state.get()
+        if not snap.connected:
+            g90_sent = False
+            continue
+
+        # Use last-sent position for deadband comparison (not M114)
+        send_x = tx if (tx is not None and abs(tx - last_sent_x) > deadband_mm) else None
+        send_y = ty if (ty is not None and abs(ty - last_sent_y) > deadband_mm) else None
+        send_z = tz if (tz is not None and abs(tz - last_sent_z) > deadband_mm) else None
+
+        if send_x is None and send_y is None and send_z is None:
+            continue
+
+        # Safety validation (use full target values for limit checking)
+        check_x = tx if tx is not None else last_sent_x
+        check_y = ty if ty is not None else last_sent_y
+        check_z = tz if tz is not None else last_sent_z
+        result = safety.validate_absolute_position(snap, check_x, check_y, check_z)
+        if not result.allowed:
+            logger.warning(f"Target rejected: {result.reason}")
+            await broadcast_log("warning", f"BLOCKED: {result.reason}")
+            continue
+
+        # Always send ALL axes (so Marlin has the full target, not partial)
+        final_x = tx if tx is not None else last_sent_x
+        final_y = ty if ty is not None else last_sent_y
+        final_z = tz if tz is not None else last_sent_z
+
+        # Use high follower feedrate for XY; constrain Z to safe speed
+        cfg = config.printer.jog
+        if send_z is not None and send_x is None and send_y is None:
+            f = cfg.feedrate_z
+        else:
+            f = feedrate
+
+        g1_cmd = f"G1 X{final_x:.3f} Y{final_y:.3f} Z{final_z:.3f} F{f}"
+
+        # Update last-sent tracking
+        last_sent_x = final_x
+        last_sent_y = final_y
+        last_sent_z = final_z
+
+        def _send(
+            cmd: str = g1_cmd,
+            ensure_g90: bool = not g90_sent,
+        ) -> None:
+            if ensure_g90:
+                worker.send("G90")
+            worker.send_latest(cmd)
+
+        g90_sent = True
+        await loop.run_in_executor(None, _send)
+
+
+async def _position_poll_loop(
+    state: ThreadSafeState,
+    worker: SerialWorker,
+) -> None:
+    """Periodically query M114 for position display.
+
+    Since the send_loop prioritizes latest (motion G1) over queue,
+    M114 never blocks motion — safe to poll at a steady rate.
+    We only enqueue M114 when the queue is empty to prevent pile-up
+    during long-running commands (e.g. G28 homing takes 10-15s and
+    would otherwise accumulate ~30 stale M114 in the queue).
+    """
+    loop = asyncio.get_event_loop()
+
+    while True:
+        await asyncio.sleep(0.5)
+
+        snap = state.get()
+        if not snap.connected:
+            continue
+
+        # Skip if queue already has pending commands — don't pile up M114
+        if not worker.queue_empty:
+            continue
+
+        def _poll() -> None:
+            worker.send("M114")
+
+        await loop.run_in_executor(None, _poll)

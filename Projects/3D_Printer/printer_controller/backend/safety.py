@@ -166,3 +166,29 @@ class SafetyValidator:
     def can_emergency_stop(self, state: PrinterState) -> SafetyResult:
         """Emergency stop is always permitted regardless of state."""
         return SafetyResult(True)
+
+    def validate_absolute_position(
+        self,
+        state: PrinterState,
+        x: float | None,
+        y: float | None,
+        z: float | None,
+    ) -> SafetyResult:
+        """Validate an absolute target position against bed limits."""
+        if not state.connected:
+            return SafetyResult(False, "Printer not connected")
+        if state.locked:
+            return SafetyResult(False, "Controller locked after error")
+
+        cfg = self._config.printer
+        for label, val, lo, hi in [
+            ("X", x, cfg.bed.x_min, cfg.bed.x_max),
+            ("Y", y, cfg.bed.y_min, cfg.bed.y_max),
+            ("Z", z, cfg.bed.z_min, cfg.bed.z_max),
+        ]:
+            if val is not None and (val < lo or val > hi):
+                return SafetyResult(
+                    False,
+                    f"{label}={val:.2f} exceeds limits [{lo}, {hi}]",
+                )
+        return SafetyResult(True)

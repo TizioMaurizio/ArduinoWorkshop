@@ -67,6 +67,35 @@ def fan_off() -> str:
     return "M107"
 
 
+def move_absolute(
+    x: float | None = None,
+    y: float | None = None,
+    z: float | None = None,
+    feedrate: int = 3000,
+) -> list[str]:
+    """Build an absolute-positioning move sequence: G90 → G1 → M114.
+
+    Only includes axes that are not None.  Returns an empty list if no
+    axis is specified.
+    """
+    parts: list[str] = []
+    if x is not None:
+        parts.append(f"X{x:.3f}")
+    if y is not None:
+        parts.append(f"Y{y:.3f}")
+    if z is not None:
+        parts.append(f"Z{z:.3f}")
+
+    if not parts:
+        return []
+
+    return [
+        "G90",
+        f"G1 {' '.join(parts)} F{feedrate}",
+        "M114",
+    ]
+
+
 def move_relative(
     x: float = 0,
     y: float = 0,
