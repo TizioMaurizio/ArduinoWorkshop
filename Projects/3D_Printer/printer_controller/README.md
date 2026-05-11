@@ -169,15 +169,54 @@ printer_controller/
 
 ## React 3D Digital Shadow
 
-The React visualizer shows a real-time 3D digital shadow of the actuator (tool head) position. It connects to the Python backend via WebSocket and renders the build plate, build volume, and actuator as a Three.js scene.
+The React visualizer shows a real-time 3D digital shadow of the actuator (tool head) position with interactive control. It connects to the Python backend via WebSocket for bidirectional communication.
+
+### Launch (both backend + frontend)
+
+**Terminal 1 — Python backend:**
 
 ```bash
-cd react_visualizer
-npm install
+cd Projects/3D_Printer/printer_controller
+
+# Activate venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Linux/macOS
+
+# Real printer (auto-detect or specify port)
+python -m backend.main --auto
+python -m backend.main --port COM11 --baud 250000
+
+# Mock (no printer)
+python -m backend.main --mock
+```
+
+**Terminal 2 — React frontend:**
+
+```bash
+cd Projects/3D_Printer/printer_controller/react_visualizer
+npm install    # first time only
 npm run dev
 ```
 
-Then open `http://localhost:5173` in a browser. The Python backend must be running to receive state updates.
+Open `http://localhost:5173` in a browser. Both terminals must stay running.
+
+### Real-time controls
+
+The React app sends target positions to the backend via WebSocket. The backend's follower loop converts these into ok-gated G1 commands at 100ms intervals.
+
+| Input | Action |
+|-------|--------|
+| W / S | Move Y +/- |
+| A / D | Move X -/+ |
+| Shift+W / Shift+S | Move Z +/- |
+| H | Home all axes |
+| Space | Emergency stop (M112) |
+| +/- | Change jog step size |
+| Mouse mode button | Toggle click-drag on build plate |
+
+**Keyboard** moves are continuous (hold-to-move at 50 mm/s XY, 5 mm/s Z). The 3D scene updates at 60fps locally; the physical printer follows at 100ms ticks.
+
+**Mouse mode** lets you click and drag on the build plate to position the tool head. Toggle with the button at the bottom-left of the viewport.
 
 ---
 
