@@ -44,6 +44,18 @@ Projects/ESP32-CAM-PlatformIO/drone_control/
 # Video files (large binaries)
 *.mp4
 
+# Godot build/import cache
+.godot/
+
+# Generated media (extracted frames, processed output)
+**/Media/input/
+**/Media/output/
+**/Media/old/
+
+# Stray Godot exports at repo root
+/icon.png
+/icon.svg
+
 # Copilot memory (local workspace state, not shared)
 memories/
 
