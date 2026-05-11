@@ -47,6 +47,10 @@ This starts:
 - WebSocket state server at `ws://127.0.0.1:8765/ws/state`
 - REST API at `http://127.0.0.1:8765`
 
+### One-click launcher (Windows)
+
+Double-click `start.bat` in `Projects/3D_Printer/`. It starts both backend and frontend in separate windows.
+
 ### Real printer
 
 ```bash
@@ -152,10 +156,16 @@ printer_controller/
 │  └─ config.py          # Config loader
 ├─ react_visualizer/     # React + Three.js 3D digital shadow
 ├─ godot_visualizer/     # Read-only 3D visualizer (Godot 4)
-├─ tests/
+├─ scripts/              # Diagnostic and test scripts
+│  ├─ test_movements.py  # 17-check end-to-end movement test
+│  ├─ diagnose_quick.py  # Quick serial diagnostics
+│  └─ draw_circle.py     # WebSocket follower circle demo
+├─ docs/                 # Design docs and learnings
+├─ tests/                # Unit tests (pytest)
 ├─ config.example.yaml
 ├─ requirements.txt
 └─ README.md
+../start.bat             # One-click Windows launcher
 ```
 
 ### Design rule
