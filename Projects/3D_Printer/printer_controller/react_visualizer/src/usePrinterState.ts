@@ -1,9 +1,11 @@
 /**
- * usePrinterState — WebSocket hook that receives live printer state
- * from the Python backend.  Read-only: never sends commands.
+ * usePrinterState — bidirectional WebSocket hook.
+ *
+ * Receives live printer state from the Python backend.
+ * Sends target position updates to the backend for the follower loop.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const WS_URL = "ws://127.0.0.1:8765/ws/state";
 const RECONNECT_DELAY_MS = 3_000;
@@ -61,7 +63,7 @@ const DEFAULT_BED: BedConfig = {
   y_min: 0,
   y_max: 220,
   z_min: 0,
-  z_max: 250,
+  z_max: 260,
 };
 
 export type WsStatus = "connecting" | "connected" | "disconnected";
@@ -143,5 +145,16 @@ export function usePrinterState() {
     };
   }, []);
 
-  return { state, bed, wsStatus };
+  /** Send a target position to the backend's follower loop. */
+  const sendTarget = useCallback(
+    (x: number, y: number, z: number) => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "target", x, y, z }));
+      }
+    },
+    [],
+  );
+
+  return { state, bed, wsStatus, sendTarget };
 }

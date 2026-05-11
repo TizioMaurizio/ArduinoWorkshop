@@ -4,7 +4,8 @@
  * Renders:
  *   - Build plate (the bed surface)
  *   - Build volume wireframe
- *   - Actuator (the tool head) as a cylinder + cone
+ *   - Actuator predicted position (solid, moves instantly on keypress)
+ *   - Actuator actual position (ghost, trails behind)
  *   - Grid helper on the bed plane
  *
  * Coordinate mapping (same as Godot visualizer):
@@ -15,35 +16,46 @@
  * Scale: 1 Three unit = 1 mm  (actual size for precision)
  */
 
-import { useRef } from "react";
+import { useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Mesh, Group } from "three";
 import * as THREE from "three";
 import type { BedConfig, PrinterState } from "./usePrinterState.ts";
+import type { Vec3 } from "./useActuatorControl.ts";
 
 interface Props {
   state: PrinterState;
   bed: BedConfig;
+  predictedRef: MutableRefObject<Vec3>;
+  actualRef: MutableRefObject<Vec3>;
+  advancePredicted: (dt: number) => void;
+  hasPending: boolean;
 }
 
-/** Smoothly interpolated actuator position */
-function Actuator({ state }: { state: PrinterState }) {
+/** Predicted actuator — solid, reads directly from ref at 60fps */
+function Actuator({
+  predictedRef,
+  state,
+}: {
+  predictedRef: MutableRefObject<Vec3>;
+  state: PrinterState;
+}) {
   const groupRef = useRef<Group>(null);
-  const targetRef = useRef({ x: 0, y: 0, z: 0 });
 
-  // Update target whenever state has valid coordinates
-  if (state.x != null) targetRef.current.x = state.x;
-  if (state.z != null) targetRef.current.y = state.z; // printer Z → Three Y
-  if (state.y != null) targetRef.current.z = state.y; // printer Y → Three Z
-
-  useFrame((_frameState, delta) => {
+  useFrame((_s, delta) => {
     if (!groupRef.current) return;
-    const t = targetRef.current;
-    const p = groupRef.current.position;
-    const lerp = 1 - Math.pow(0.001, delta); // smooth ~60 fps
-    p.x += (t.x - p.x) * lerp;
-    p.y += (t.y - p.y) * lerp;
-    p.z += (t.z - p.z) * lerp;
+    const p = predictedRef.current;
+    const pos = groupRef.current.position;
+    // Target in Three coords
+    const tx = p.x;
+    const ty = p.z; // printer Z → Three Y
+    const tz = p.y; // printer Y → Three Z
+    // Very fast exponential lerp — dampens mouse jitter while
+    // feeling instant for keyboard. ~95% converged in 1 frame at 60fps.
+    const t = 1 - Math.exp(-30 * delta);
+    pos.x += (tx - pos.x) * t;
+    pos.y += (ty - pos.y) * t;
+    pos.z += (tz - pos.z) * t;
   });
 
   const headColor = state.connected
@@ -73,6 +85,59 @@ function Actuator({ state }: { state: PrinterState }) {
           color={headColor}
           emissive={headColor}
           emissiveIntensity={0.5}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/** Ghost actuator — semi-transparent, shows where the printer actually is */
+function ActuatorGhost({ actualRef }: { actualRef: MutableRefObject<Vec3> }) {
+  const groupRef = useRef<Group>(null);
+
+  useFrame((_frameState, delta) => {
+    if (!groupRef.current) return;
+    const a = actualRef.current;
+    const tx = a.x;
+    const ty = a.z; // printer Z → Three Y
+    const tz = a.y; // printer Y → Three Z
+    const p = groupRef.current.position;
+    // Smooth trailing — slower than prediction
+    const lerp = 1 - Math.pow(0.005, delta);
+    p.x += (tx - p.x) * lerp;
+    p.y += (ty - p.y) * lerp;
+    p.z += (tz - p.z) * lerp;
+  });
+
+  return (
+    <group ref={groupRef}>
+      <mesh position={[0, 12, 0]}>
+        <cylinderGeometry args={[4, 4, 24, 16]} />
+        <meshStandardMaterial
+          color="#5599ff"
+          transparent
+          opacity={0.18}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[0, -2, 0]}>
+        <coneGeometry args={[3, 8, 16]} />
+        <meshStandardMaterial
+          color="#5599ff"
+          transparent
+          opacity={0.25}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[0, -6, 0]}>
+        <sphereGeometry args={[1.5, 12, 12]} />
+        <meshStandardMaterial
+          color="#5599ff"
+          emissive="#5599ff"
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.35}
+          depthWrite={false}
         />
       </mesh>
     </group>
@@ -149,7 +214,19 @@ function AxisIndicator() {
   );
 }
 
-export default function PrinterScene({ state, bed }: Props) {
+export default function PrinterScene({
+  state,
+  bed,
+  predictedRef,
+  actualRef,
+  advancePredicted,
+  hasPending,
+}: Props) {
+  // Drive the predicted position from Three's own render loop (60fps)
+  useFrame((_frameState, delta) => {
+    advancePredicted(delta);
+  });
+
   return (
     <>
       <ambientLight intensity={0.4} />
@@ -160,7 +237,8 @@ export default function PrinterScene({ state, bed }: Props) {
       <BedGrid bed={bed} />
       <BuildVolume bed={bed} />
       <AxisIndicator />
-      <Actuator state={state} />
+      {hasPending && <ActuatorGhost actualRef={actualRef} />}
+      <Actuator predictedRef={predictedRef} state={state} />
     </>
   );
 }
