@@ -1,0 +1,69 @@
+{
+  "name": "Blinking LED",
+  "nodes": [
+    {
+      "id": "arduino-1",
+      "type": "circuitComponent",
+      "position": { "x": 50, "y": 80 },
+      "data": {
+        "label": "Arduino Uno",
+        "componentType": "arduino-uno",
+        "properties": {}
+      }
+    },
+    {
+      "id": "resistor-1",
+      "type": "circuitComponent",
+      "position": { "x": 450, "y": 80 },
+      "data": {
+        "label": "Resistor",
+        "componentType": "resistor",
+        "properties": { "resistance": 220 }
+      }
+    },
+    {
+      "id": "led-1",
+      "type": "circuitComponent",
+      "position": { "x": 650, "y": 80 },
+      "data": {
+        "label": "LED",
+        "componentType": "led",
+        "properties": { "color": "red" }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "wire-d13-to-res",
+      "source": "arduino-1",
+      "target": "resistor-1",
+      "sourceHandle": "d13",
+      "targetHandle": "pin1",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#ffa726", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-res-to-led",
+      "source": "resistor-1",
+      "target": "led-1",
+      "sourceHandle": "pin2",
+      "targetHandle": "anode",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#ef5350", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-led-gnd",
+      "source": "arduino-1",
+      "target": "led-1",
+      "sourceHandle": "gnd1",
+      "targetHandle": "cathode",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#444444", "strokeWidth": 2 }
+    }
+  ],
+  "code": "// Blinking LED - Arduino Sketch\n// Circuit: Arduino Uno pin D13 → 220Ω Resistor → LED → GND\n\nconst int LED_PIN = 13;\nconst unsigned long BLINK_INTERVAL = 1000; // ms\n\nvoid setup() {\n  pinMode(LED_PIN, OUTPUT);\n  Serial.begin(9600);\n  Serial.println(\"Blink LED started\");\n}\n\nvoid loop() {\n  digitalWrite(LED_PIN, HIGH);\n  Serial.println(\"LED ON\");\n  delay(BLINK_INTERVAL);\n\n  digitalWrite(LED_PIN, LOW);\n  Serial.println(\"LED OFF\");\n  delay(BLINK_INTERVAL);\n}\n",
+  "exportedAt": "2026-05-11T00:00:00.000Z"
+}

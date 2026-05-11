@@ -1,0 +1,59 @@
+{
+  "name": "Servo Sweep",
+  "nodes": [
+    {
+      "id": "arduino-1",
+      "type": "circuitComponent",
+      "position": { "x": 50, "y": 80 },
+      "data": {
+        "label": "Arduino Uno",
+        "componentType": "arduino-uno",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-1",
+      "type": "circuitComponent",
+      "position": { "x": 450, "y": 80 },
+      "data": {
+        "label": "Servo SG90",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "wire-5v-to-vcc",
+      "source": "arduino-1",
+      "target": "servo-1",
+      "sourceHandle": "5v",
+      "targetHandle": "vcc",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#ef5350", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-d9-to-signal",
+      "source": "arduino-1",
+      "target": "servo-1",
+      "sourceHandle": "d9",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#ffa726", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-gnd-to-gnd",
+      "source": "arduino-1",
+      "target": "servo-1",
+      "sourceHandle": "gnd1",
+      "targetHandle": "gnd",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#444444", "strokeWidth": 2 }
+    }
+  ],
+  "code": "// Servo Sweep - Arduino Sketch\n// Circuit: Arduino Uno D9~ → Servo Signal, 5V → VCC, GND → GND\n\n#include <Servo.h>\n\nconst int SERVO_PIN = 9;\nServo myServo;\n\nvoid setup() {\n  myServo.attach(SERVO_PIN);\n  Serial.begin(9600);\n  Serial.println(\"Servo sweep started\");\n}\n\nvoid loop() {\n  myServo.write(0);\n  Serial.println(\"Angle: 0\");\n  delay(800);\n\n  myServo.write(45);\n  Serial.println(\"Angle: 45\");\n  delay(800);\n\n  myServo.write(90);\n  Serial.println(\"Angle: 90\");\n  delay(800);\n\n  myServo.write(135);\n  Serial.println(\"Angle: 135\");\n  delay(800);\n\n  myServo.write(180);\n  Serial.println(\"Angle: 180\");\n  delay(800);\n\n  myServo.write(90);\n  Serial.println(\"Angle: 90\");\n  delay(800);\n}\n",
+  "exportedAt": "2026-05-11T00:00:00.000Z"
+}
