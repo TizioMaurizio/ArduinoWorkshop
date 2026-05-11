@@ -607,9 +607,22 @@ class SerialWorker:
 
     # -- response parsing ---------------------------------------------------
 
+    # Benign Marlin errors that should NOT lock the controller
+    _IGNORABLE_ERRORS = (
+        "volume.init failed",      # No SD card — harmless over USB
+        "openroot failed",         # SD card directory unreadable
+        "sd init fail",            # SD card init timeout
+        "cannot open subdir",      # SD card subdirectory issue
+    )
+
     def _process_response(self, line: str) -> None:
-        # Critical errors
+        # Critical errors (but skip benign SD-card noise)
         if line.startswith("Error:") or "Printer halted" in line:
+            lower = line.lower()
+            if any(ign in lower for ign in self._IGNORABLE_ERRORS):
+                self._log("info", f"Ignoring benign error: {line}")
+                self._got_ok.set()
+                return
             self._state.update(locked=True, last_error=line, busy=False)
             self._log("error", f"Printer error: {line}")
             self._got_ok.set()
