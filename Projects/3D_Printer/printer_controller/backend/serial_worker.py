@@ -404,6 +404,11 @@ class SerialWorker:
         self._thread: threading.Thread | None = None
         self._read_thread: threading.Thread | None = None
         self._got_ok = threading.Event()
+        self._processing = False  # True while send_loop is waiting for ok
+        # Single-slot "latest" command — always overwrites, never queues
+        self._latest_cmd: str | None = None
+        self._latest_lock = threading.Lock()
+        self._latest_event = threading.Event()
 
     # -- connection ---------------------------------------------------------
 
@@ -483,6 +488,13 @@ class SerialWorker:
     def send(self, command: str) -> None:
         """Enqueue a G-code command for sequential sending."""
         self._cmd_queue.put(command.strip())
+        self._latest_event.set()  # wake send_loop to process queue
+
+    @property
+    def queue_empty(self) -> bool:
+        """True if the command queue has no pending items and no command
+        is currently being processed (waiting for ok)."""
+        return self._cmd_queue.empty() and not self._processing
 
     def send_immediate(self, command: str) -> None:
         """Send a command immediately, bypassing the queue (for M112)."""
@@ -493,6 +505,18 @@ class SerialWorker:
                 self._log("info", f"Sent immediate: {command.strip()}")
             except Exception as exc:
                 self._log("error", f"Failed immediate send: {exc}")
+
+    def send_latest(self, command: str) -> None:
+        """Set a single-slot 'latest' command that replaces any pending one.
+
+        Unlike send() which queues, this always overwrites the previous
+        unsent command.  The send loop picks it up on the next ok-gated
+        cycle.  Use this for continuous motion (jog/follow) where only
+        the most recent target matters.
+        """
+        with self._latest_lock:
+            self._latest_cmd = command.strip()
+        self._latest_event.set()
 
     # -- internal threads ---------------------------------------------------
 
@@ -513,27 +537,53 @@ class SerialWorker:
         self.send("M114")
 
     def _send_loop(self) -> None:
-        """Send commands one at a time, waiting for ``ok`` between each."""
+        """Send commands one at a time, waiting for ``ok`` between each.
+
+        Priority: latest (motion G1) first, then queued commands.
+        Motion is time-critical; informational queries (M114) can wait.
+        The latest-slot always holds only the most recent motion command,
+        so continuous movement never builds up a backlog.
+        """
         while self._running:
-            try:
-                cmd = self._cmd_queue.get(timeout=0.2)
-            except queue.Empty:
+            cmd: str | None = None
+
+            # Priority 1: single-slot latest command (follower G1 — time-critical)
+            with self._latest_lock:
+                if self._latest_cmd is not None:
+                    cmd = self._latest_cmd
+                    self._latest_cmd = None
+            if cmd is not None:
+                self._latest_event.clear()
+
+            # Priority 2: queued commands (handshake, M114, user gcode, etc.)
+            if cmd is None:
+                try:
+                    cmd = self._cmd_queue.get_nowait()
+                except queue.Empty:
+                    pass
+
+            if cmd is None:
+                # Wait for either a queue item or a latest-slot write
+                self._latest_event.wait(timeout=0.2)
                 continue
 
             if not self._serial or not self._serial.is_open:
                 break
 
+            self._processing = True
             self._got_ok.clear()
             line = cmd + "\n"
             try:
                 self._serial.write(line.encode("ascii"))
                 self._log("info", f"Sent: {cmd}", cmd)
             except Exception as exc:
+                self._processing = False
                 self._log("error", f"Write error: {exc}")
                 break
 
             if not self._got_ok.wait(timeout=RESPONSE_TIMEOUT_S):
                 self._log("warning", f"Timeout waiting for response to: {cmd}")
+            self._processing = False
 
     def _read_loop(self) -> None:
         """Read and parse serial responses continuously."""
