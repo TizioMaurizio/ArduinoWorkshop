@@ -14,6 +14,9 @@
   </video>
 </p>
 
+> **New: [Circuit Designer](Projects/CircuitDesigner/README.md)**
+> Visual circuit designer with drag-and-drop components, pin-level wiring, wire coloring, and a built-in Arduino code simulator with LED and servo visualizations.
+
 ---
 
 Welcome to the Arduino Workshop, here you can view and share Arduino source codes and projects which will be assembled tested on TizioMaurizio's Elegoo Uno R3 Arduino board.
