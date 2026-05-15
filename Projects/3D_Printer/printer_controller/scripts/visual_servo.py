@@ -897,6 +897,10 @@ TWIN_HTML = r"""<!DOCTYPE html>
       <label>Invert Y</label>
       <label class="toggle"><input type="checkbox" id="invertY"><span class="slider"></span></label>
     </div>
+    <div class="toggle-row">
+      <label>Visual Only</label>
+      <label class="toggle"><input type="checkbox" id="visualOnly"><span class="slider"></span></label>
+    </div>
     <div class="keys-hint">
       <b>WASD</b>=XY &nbsp;<b>Q/E</b>=Z &nbsp;<b>+/-</b>=Step<br>
       <b>Space</b>=Toggle &nbsp;<b>H</b>=Home<br>
@@ -1165,30 +1169,43 @@ function updateScene(){
   // ── Red target position estimation ────────────────────────────
   // Use camera pixel offset between blue (extruder) and red (target)
   // to estimate the target's bed position.  Works in both auto and manual.
-  if(pState.red_found && pState.red_x!=null && pState.blue_x!=null){
-    // Pixel offset: red minus blue
-    const dpx = pState.red_x - pState.blue_x;
-    const dpy = pState.red_y - pState.blue_y;
-    // Convert to mm and map to printer axes
-    const offX = dpx * MM_PER_PX * CAM_RIGHT_TO_X;
-    const offY = dpy * MM_PER_PX * CAM_DOWN_TO_Y;
-    // Target = extruder position + offset
-    const estX = Math.max(0, Math.min(BED, pState.x + offX));
-    const estY = Math.max(0, Math.min(BED, pState.y + offY));
-    // EMA smooth (faster when close, slower when far)
-    const alpha = 0.15;
-    targetEstX = alpha*estX + (1-alpha)*targetEstX;
-    targetEstY = alpha*estY + (1-alpha)*targetEstY;
-  } else if(pState.red_found && pState.dx!==0 && pState.dy!==0){
-    // Fallback: use move-direction estimation (auto-tracking only)
-    const distMm = (pState.distance||0) * MM_PER_PX;
-    if(distMm > 5){
-      const moveMag = Math.sqrt(pState.dx*pState.dx + pState.dy*pState.dy);
-      if(moveMag > 0.01){
-        const estX = pState.x + (pState.dx/moveMag) * distMm;
-        const estY = pState.y + (pState.dy/moveMag) * distMm;
-        targetEstX = 0.1*Math.max(0,Math.min(BED,estX)) + 0.9*targetEstX;
-        targetEstY = 0.1*Math.max(0,Math.min(BED,estY)) + 0.9*targetEstY;
+  const visualOnly=$('visualOnly')&&$('visualOnly').checked;
+  if(pState.red_found && pState.red_x!=null){
+    if(visualOnly){
+      // Pure visual: map red pixel coords directly to bed coords
+      // Camera covers roughly the bed area; map pixel range to 0..BED
+      // Frame is 640x480; bed fills most of the view
+      const camW=640, camH=480;
+      // Camera right = printer X-, camera down = printer Y+
+      const rawX = (1 - pState.red_x/camW) * BED;  // invert X axis
+      const rawY = (pState.red_y/camH) * BED;
+      const estX = Math.max(0, Math.min(BED, rawX));
+      const estY = Math.max(0, Math.min(BED, rawY));
+      const alpha = 0.2;
+      targetEstX = alpha*estX + (1-alpha)*targetEstX;
+      targetEstY = alpha*estY + (1-alpha)*targetEstY;
+    } else if(pState.blue_x!=null){
+      // Odometry + visual: extruder position + camera pixel offset
+      const dpx = pState.red_x - pState.blue_x;
+      const dpy = pState.red_y - pState.blue_y;
+      const offX = dpx * MM_PER_PX * CAM_RIGHT_TO_X;
+      const offY = dpy * MM_PER_PX * CAM_DOWN_TO_Y;
+      const estX = Math.max(0, Math.min(BED, pState.x + offX));
+      const estY = Math.max(0, Math.min(BED, pState.y + offY));
+      const alpha = 0.15;
+      targetEstX = alpha*estX + (1-alpha)*targetEstX;
+      targetEstY = alpha*estY + (1-alpha)*targetEstY;
+    } else if(pState.dx!==0 && pState.dy!==0){
+      // Fallback: use move-direction estimation (auto-tracking only)
+      const distMm = (pState.distance||0) * MM_PER_PX;
+      if(distMm > 5){
+        const moveMag = Math.sqrt(pState.dx*pState.dx + pState.dy*pState.dy);
+        if(moveMag > 0.01){
+          const estX = pState.x + (pState.dx/moveMag) * distMm;
+          const estY = pState.y + (pState.dy/moveMag) * distMm;
+          targetEstX = 0.1*Math.max(0,Math.min(BED,estX)) + 0.9*targetEstX;
+          targetEstY = 0.1*Math.max(0,Math.min(BED,estY)) + 0.9*targetEstY;
+        }
       }
     }
   }
