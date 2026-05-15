@@ -2438,6 +2438,7 @@ def run_visual_servo(
                 blue_det = detect_blue(frame)
                 if det.found:
                     last_cx, last_cy = det.centroid_x, det.centroid_y
+                tracking.detections.append(det)
                 annotated = annotate_frame(frame, det, tracking, mapping, blue=blue_det)
                 viz.update(annotated, frame)
             tracking.status_msg = "PAUSED -- manual control active"
