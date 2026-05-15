@@ -106,6 +106,14 @@ MIN_CONTOUR_AREA_ACQUIRE = 800   # floor to acquire a NEW target (no lock)
 # When red centroid is within this many pixels of blue (extruder) marker, we've arrived
 ARRIVAL_THRESHOLD_PX = 40
 
+# Occlusion-aware lock: when target was this close to extruder, assume
+# occlusion rather than target loss.  Hold lock for longer and anchor to blue.
+OCCLUSION_PROXIMITY_PX = 120     # distance to blue below which occlusion is assumed
+OCCLUSION_MISS_LIMIT = 150       # frames to hold lock during occlusion (vs 30 normal)
+NORMAL_MISS_LIMIT = 30           # frames to hold lock in normal conditions
+REACQUIRE_PROXIMITY_PX = 250     # when re-acquiring after occlusion, new target must be
+                                 # within this distance of the blue marker
+
 # Movement step size in mm per iteration
 STEP_MM = 1.0
 
@@ -1773,12 +1781,17 @@ TARGET_LOCK_RADIUS_PX = 200
 
 def detect_red(frame: np.ndarray,
                last_cx: int | None = None,
-               last_cy: int | None = None) -> RedDetection:
+               last_cy: int | None = None,
+               blue_hint: tuple[int, int] | None = None) -> RedDetection:
     """Detect a red region in a BGR frame.
 
     If last_cx/last_cy are given (target lock), prefer contours near the
     locked position, weighted by area so larger blobs win over tiny noise.
     Reject detections that jump more than TARGET_LOCK_RADIUS_PX.
+
+    If blue_hint is given (cx, cy of the blue marker) and no lock is active,
+    prefer contours near the blue marker over distant ones — prevents jumping
+    to a false red across the frame after occlusion near the extruder.
     """
     h, w = frame.shape[:2]
 
@@ -1841,14 +1854,42 @@ def detect_red(frame: np.ndarray,
                 best_contour, best_area = c, area
                 best_cx, best_cy = cx, cy
     else:
-        # No lock — pick largest contour
-        largest_c, largest_a = max(valid, key=lambda x: x[1])
-        M = cv2.moments(largest_c)
-        if M["m00"] == 0:
-            return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
-        best_contour, best_area = largest_c, largest_a
-        best_cx = int(M["m10"] / M["m00"])
-        best_cy = int(M["m01"] / M["m00"])
+        # No lock — pick largest contour, but prefer near blue marker if hint given
+        if blue_hint is not None:
+            bx, by = blue_hint
+            # Filter to contours within REACQUIRE_PROXIMITY_PX of blue marker
+            near_blue = []
+            for c, area in valid:
+                M = cv2.moments(c)
+                if M["m00"] == 0:
+                    continue
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                d = math.sqrt((cx - bx) ** 2 + (cy - by) ** 2)
+                if d <= REACQUIRE_PROXIMITY_PX:
+                    near_blue.append((c, area, cx, cy))
+            if near_blue:
+                # Among contours near blue, pick largest
+                best_item = max(near_blue, key=lambda x: x[1])
+                best_contour, best_area = best_item[0], best_item[1]
+                best_cx, best_cy = best_item[2], best_item[3]
+            else:
+                # Nothing near blue — fall back to largest overall
+                largest_c, largest_a = max(valid, key=lambda x: x[1])
+                M = cv2.moments(largest_c)
+                if M["m00"] == 0:
+                    return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
+                best_contour, best_area = largest_c, largest_a
+                best_cx = int(M["m10"] / M["m00"])
+                best_cy = int(M["m01"] / M["m00"])
+        else:
+            largest_c, largest_a = max(valid, key=lambda x: x[1])
+            M = cv2.moments(largest_c)
+            if M["m00"] == 0:
+                return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
+            best_contour, best_area = largest_c, largest_a
+            best_cx = int(M["m10"] / M["m00"])
+            best_cy = int(M["m01"] / M["m00"])
 
     if best_contour is None:
         return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
@@ -2652,6 +2693,8 @@ def run_visual_servo(
     last_cy: int | None = det.centroid_y if (frame is not None and det.found) else None
     red_lost_count: int = 0
     red_tracker = RedTracker()
+    occlusion_hold: bool = False      # True when we think target is just hidden by extruder
+    last_good_distance_px: float = float("inf")  # distance-to-blue at last accepted detection
     if frame is not None and det.found:
         red_tracker.update(det)
 
@@ -2685,8 +2728,10 @@ def run_visual_servo(
         if tracking.stopped:
             frame = fetch_frame(camera_url)
             if frame is not None:
-                det = detect_red(frame, last_cx, last_cy)
                 blue_det = detect_blue(frame)
+                # Pass blue position as hint for re-acquisition proximity filter
+                bh = (blue_det.centroid_x, blue_det.centroid_y) if blue_det.found else None
+                det = detect_red(frame, last_cx, last_cy, blue_hint=bh)
                 if det.found:
                     last_cx, last_cy = det.centroid_x, det.centroid_y
                 if blue_det.found:
@@ -2711,11 +2756,14 @@ def run_visual_servo(
             continue
 
         # Detect red (with target lock) and blue (extruder marker)
-        det = detect_red(frame, last_cx, last_cy)
         blue_det = detect_blue(frame)
         if blue_det.found:
             tracking.blue_px_x = blue_det.centroid_x
             tracking.blue_px_y = blue_det.centroid_y
+
+        # Pass blue position as hint for re-acquisition proximity filter
+        bh = (blue_det.centroid_x, blue_det.centroid_y) if blue_det.found else None
+        det = detect_red(frame, last_cx, last_cy, blue_hint=bh)
 
         # --- Markov temporal consistency filter ---
         markov_reason = ""
@@ -2725,6 +2773,12 @@ def run_visual_servo(
                 red_tracker.update(det, blue_det)
                 last_cx, last_cy = det.centroid_x, det.centroid_y
                 red_lost_count = 0
+                occlusion_hold = False
+                # Update distance-to-blue for occlusion logic
+                if blue_det.found:
+                    last_good_distance_px = math.sqrt(
+                        (det.centroid_x - blue_det.centroid_x) ** 2 +
+                        (det.centroid_y - blue_det.centroid_y) ** 2)
             else:
                 if should_log or markov_reason.startswith("comovement"):
                     logger.info(f"[{tracking.iteration}] Markov REJECT: {markov_reason} "
@@ -2734,17 +2788,40 @@ def run_visual_servo(
                     last_cx, last_cy = None, None
                     red_tracker.reset()
                     red_lost_count += 1
+                    occlusion_hold = False
+                    last_good_distance_px = float("inf")
                     if should_log:
                         logger.info(f"[{tracking.iteration}] Lock dropped by Markov filter, "
                                     f"re-acquiring with strict threshold")
                 det = RedDetection(found=False, frame_w=det.frame_w, frame_h=det.frame_h)
         else:
             red_lost_count += 1
-            # After 30 consecutive misses, drop lock so re-acquisition uses stricter threshold
-            if red_lost_count > 30 and last_cx is not None:
-                logger.info(f"[{tracking.iteration}] Dropping target lock after {red_lost_count} misses")
+
+            # Decide miss limit: if target was near extruder, assume occlusion
+            if last_good_distance_px < OCCLUSION_PROXIMITY_PX:
+                miss_limit = OCCLUSION_MISS_LIMIT
+                if not occlusion_hold and last_cx is not None:
+                    occlusion_hold = True
+                    logger.info(f"[{tracking.iteration}] Occlusion hold — target was "
+                                f"{last_good_distance_px:.0f}px from extruder, "
+                                f"holding lock for up to {miss_limit} frames")
+            else:
+                miss_limit = NORMAL_MISS_LIMIT
+
+            # During occlusion hold, anchor lock position to blue marker
+            # so when the target reappears near the extruder it's in range
+            if occlusion_hold and blue_det.found and last_cx is not None:
+                last_cx = blue_det.centroid_x
+                last_cy = blue_det.centroid_y
+
+            if red_lost_count > miss_limit and last_cx is not None:
+                logger.info(f"[{tracking.iteration}] Dropping target lock after "
+                            f"{red_lost_count} misses (limit={miss_limit}, "
+                            f"occlusion={occlusion_hold})")
                 last_cx, last_cy = None, None
                 red_tracker.reset()
+                occlusion_hold = False
+                last_good_distance_px = float("inf")
         tracking.detections.append(det)
 
         # Annotate and push to visualization server
