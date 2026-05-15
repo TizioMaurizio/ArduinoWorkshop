@@ -757,67 +757,71 @@ TWIN_HTML = r"""<!DOCTYPE html>
   #modePill.auto{background:#1a6622;color:#4f4;border:1px solid #4f4}
   #modePill.manual{background:#663300;color:#fa0;border:1px solid #fa0;animation:pulse-manual 1s infinite}
   @keyframes pulse-manual{0%,100%{opacity:1}50%{opacity:0.7}}
-  #camFeed{position:absolute;bottom:10px;right:10px;width:280px;border:2px solid #333;
-           border-radius:6px;opacity:0.85;transition:width 0.3s;z-index:5}
-  #camFeed:hover{opacity:1;width:400px}
-  #legend{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,0.7);
+  #camFeed{position:absolute;bottom:10px;left:10px;width:260px;border:2px solid #333;
+           border-radius:6px;opacity:0.85;transition:width 0.3s,opacity 0.2s;z-index:5}
+  #camFeed:hover{opacity:1;width:380px}
+  #legend{position:absolute;bottom:10px;left:280px;background:rgba(0,0,0,0.7);
           padding:8px 12px;border-radius:6px;font-size:11px;pointer-events:none;z-index:10}
   #legend span{margin-right:12px}
   .cBlue{color:#4488ff} .cRed{color:#ff4444} .cGreen{color:#44ff44} .cYellow{color:#ffff00}
   /* ── Control panel ──────────────────────────────── */
-  #ctrlPanel{position:absolute;top:10px;right:10px;width:200px;z-index:20;
-             font-size:12px;user-select:none}
+  #ctrlPanel{position:absolute;top:10px;right:10px;width:180px;z-index:20;
+             font-size:11px;user-select:none;
+             max-height:calc(100vh - 20px);overflow-y:auto;overflow-x:hidden;
+             scrollbar-width:thin;scrollbar-color:#333 transparent}
+  #ctrlPanel::-webkit-scrollbar{width:4px}
+  #ctrlPanel::-webkit-scrollbar-thumb{background:#444;border-radius:2px}
   #ctrlPanel .section{background:rgba(0,0,0,0.8);border:1px solid #333;
-                      border-radius:6px;padding:8px 10px;margin-bottom:6px}
-  #ctrlPanel h4{color:#888;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-  .jog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:6px}
+                      border-radius:5px;padding:6px 8px;margin-bottom:4px}
+  #ctrlPanel h4{color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+  .jog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:4px}
   .jog-grid button,.ctrl-btn{background:#1a1a2e;border:1px solid #444;color:#ccc;
-    padding:6px 0;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;transition:all 0.1s}
+    padding:5px 0;border-radius:3px;cursor:pointer;font-size:11px;font-family:inherit;transition:all 0.1s}
   .jog-grid button:hover,.ctrl-btn:hover{background:#2a2a4e;border-color:#888;color:#fff}
   .jog-grid button:active,.ctrl-btn:active{background:#3a3a6e;transform:scale(0.95)}
   .jog-grid button.empty{visibility:hidden}
-  .z-row{display:flex;gap:3px;margin-bottom:6px}
+  .z-row{display:flex;gap:2px;margin-bottom:4px}
   .z-row button{flex:1}
-  .step-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-  .step-row label{color:#888;font-size:10px;white-space:nowrap}
-  .step-row input{width:55px;background:#111;border:1px solid #444;color:#0df;
-    padding:3px 5px;border-radius:3px;font-family:inherit;font-size:12px;text-align:center}
-  .step-btns{display:flex;gap:3px}
-  .step-btns button{padding:3px 8px;font-size:11px}
-  .action-row{display:flex;gap:4px}
+  .step-row{display:flex;align-items:center;gap:4px;margin-bottom:3px}
+  .step-row label{color:#888;font-size:9px;white-space:nowrap}
+  .step-row input{width:48px;background:#111;border:1px solid #444;color:#0df;
+    padding:2px 4px;border-radius:3px;font-family:inherit;font-size:11px;text-align:center}
+  .step-btns{display:flex;gap:2px}
+  .step-btns button{padding:2px 6px;font-size:10px}
+  .action-row{display:flex;gap:3px}
   .action-row button{flex:1}
   .btn-home{color:#4af!important;border-color:#4af!important}
   .btn-auto{color:#4f4!important;border-color:#4f4!important}
   .btn-estop{background:#600!important;color:#f44!important;border-color:#f44!important;font-weight:bold}
-  .gcode-row{display:flex;gap:3px}
+  .gcode-row{display:flex;gap:2px}
   .gcode-row input{flex:1;background:#111;border:1px solid #444;color:#eee;
-    padding:4px 6px;border-radius:3px;font-family:inherit;font-size:11px}
-  .gcode-row button{padding:4px 8px}
-  #ctrlLog{max-height:60px;overflow-y:auto;font-size:10px;color:#666;margin-top:4px}
+    padding:3px 5px;border-radius:3px;font-family:inherit;font-size:10px}
+  .gcode-row button{padding:3px 6px}
+  #ctrlLog{max-height:48px;overflow-y:auto;font-size:9px;color:#666;margin-top:3px}
   #ctrlLog div{padding:1px 0}
   #ctrlLog .ok{color:#4a4} #ctrlLog .err{color:#f44}
-  .keys-hint{color:#555;font-size:9px;text-align:center;margin-top:4px;line-height:1.4}
+  .keys-hint{color:#555;font-size:8px;text-align:center;margin-top:3px;line-height:1.3}
   /* ── Settings & info ────────────────────────── */
-  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
-  .toggle-row label{color:#aaa;font-size:11px}
-  .toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+  .toggle-row label{color:#aaa;font-size:10px}
+  .toggle{position:relative;width:32px;height:18px;flex-shrink:0}
   .toggle input{opacity:0;width:0;height:0}
   .toggle .slider{position:absolute;inset:0;background:#333;border-radius:10px;cursor:pointer;transition:.2s}
-  .toggle .slider::before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;
+  .toggle .slider::before{content:'';position:absolute;height:12px;width:12px;left:3px;bottom:3px;
     background:#888;border-radius:50%;transition:.2s}
   .toggle input:checked+.slider{background:#1a6622}
-  .toggle input:checked+.slider::before{transform:translateX(16px);background:#4f4}
-  .info-toggle{color:#4af;font-size:10px;cursor:pointer;text-align:center;padding:4px 0;
-    border-top:1px solid #222;margin-top:4px;user-select:none}
+  .toggle input:checked+.slider::before{transform:translateX(14px);background:#4f4}
+  .info-toggle{color:#4af;font-size:9px;cursor:pointer;text-align:center;padding:3px 0;
+    border-top:1px solid #222;margin-top:3px;user-select:none}
   .info-toggle:hover{color:#8cf}
-  #controlsInfo{display:none;font-size:10px;line-height:1.6;color:#aaa}
+  #controlsInfo{display:none;font-size:9px;line-height:1.5;color:#aaa}
   #controlsInfo.open{display:block}
-  #controlsInfo table{width:100%;border-collapse:collapse;margin-top:4px}
-  #controlsInfo th{text-align:left;color:#888;font-size:9px;text-transform:uppercase;padding:2px 0;
+  #controlsInfo table{width:100%;border-collapse:collapse;margin-top:3px}
+  #controlsInfo th{text-align:left;color:#888;font-size:8px;text-transform:uppercase;padding:1px 0;
     border-bottom:1px solid #222}
-  #controlsInfo td{padding:2px 0}
-  #controlsInfo td:first-child{color:#0df;font-weight:bold;width:40%}
-  #controlsInfo .cat{color:#fa0;font-size:9px;text-transform:uppercase;padding-top:6px}
+  #controlsInfo td{padding:1px 0}
+  #controlsInfo td:first-child{color:#0df;font-weight:bold;width:38%}
+  #controlsInfo .cat{color:#fa0;font-size:8px;text-transform:uppercase;padding-top:4px}
 </style>
 </head>
 <body>
