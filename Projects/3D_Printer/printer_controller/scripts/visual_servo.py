@@ -85,17 +85,63 @@ def _get_printer_session() -> requests.Session:
 PRINTER_URL = "http://127.0.0.1:8765"
 CAMERA_URL = "http://127.0.0.1:8766"
 
-# Red detection HSV ranges (wraps around 0/180 in OpenCV HSV)
-# Range 1: low red (0-10)
-RED_LOW1 = np.array([0, 50, 50])
-RED_HIGH1 = np.array([10, 255, 255])
-# Range 2: high red (165-180)
-RED_LOW2 = np.array([165, 50, 50])
-RED_HIGH2 = np.array([180, 255, 255])
+# ---------------------------------------------------------------------------
+# Color profiles: HSV ranges for each trackable color.
+# Each entry has a list of (low, high) HSV ranges (multiple for hue-wrapping).
+# ---------------------------------------------------------------------------
+COLOR_PROFILES: dict[str, list[tuple[np.ndarray, np.ndarray]]] = {
+    "red":    [(np.array([0, 50, 50]),   np.array([10, 255, 255])),
+               (np.array([165, 50, 50]), np.array([180, 255, 255]))],
+    "green":  [(np.array([35, 50, 50]),  np.array([85, 255, 255]))],
+    "yellow": [(np.array([20, 50, 50]),  np.array([35, 255, 255]))],
+    "blue":   [(np.array([95, 80, 50]),  np.array([130, 255, 255]))],
+    "white":  [(np.array([0, 0, 180]),   np.array([180, 50, 255]))],
+}
 
-# Blue detection HSV range (extruder marker)
-BLUE_LOW = np.array([95, 80, 50])
-BLUE_HIGH = np.array([130, 255, 255])
+# ---------------------------------------------------------------------------
+# Persistent settings (target color, extruder color)
+# ---------------------------------------------------------------------------
+_SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".servo_settings.json")
+_DEFAULT_SETTINGS = {"target_color": "red", "extruder_color": "blue"}
+_settings_lock = threading.Lock()
+
+def _load_settings() -> dict:
+    try:
+        with open(_SETTINGS_FILE, "r") as f:
+            s = json.load(f)
+        # Validate
+        for key in ("target_color", "extruder_color"):
+            if s.get(key) not in COLOR_PROFILES:
+                s[key] = _DEFAULT_SETTINGS[key]
+        return s
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return dict(_DEFAULT_SETTINGS)
+
+def _save_settings(s: dict) -> None:
+    with open(_SETTINGS_FILE, "w") as f:
+        json.dump(s, f)
+
+# Load once at startup
+_current_settings: dict = _load_settings()
+
+def get_target_color() -> str:
+    with _settings_lock:
+        return _current_settings["target_color"]
+
+def get_extruder_color() -> str:
+    with _settings_lock:
+        return _current_settings["extruder_color"]
+
+def get_color_ranges(color: str) -> list[tuple[np.ndarray, np.ndarray]]:
+    return COLOR_PROFILES.get(color, COLOR_PROFILES["red"])
+
+# Legacy constants (kept for back-compat in annotate, replaced by dynamic lookup)
+RED_LOW1 = COLOR_PROFILES["red"][0][0]
+RED_HIGH1 = COLOR_PROFILES["red"][0][1]
+RED_LOW2 = COLOR_PROFILES["red"][1][0]
+RED_HIGH2 = COLOR_PROFILES["red"][1][1]
+BLUE_LOW = COLOR_PROFILES["blue"][0][0]
+BLUE_HIGH = COLOR_PROFILES["blue"][0][1]
 
 # Minimum contour area (pixels).
 # Initial acquisition requires a large blob; once locked, allow smaller (partial occlusion).
@@ -301,6 +347,9 @@ class VisualizationServer:
                     self._json_response(viz._get_api_state())
                 elif self.path == "/api/events":
                     self._serve_sse()
+                elif self.path == "/api/settings":
+                    with _settings_lock:
+                        self._json_response(dict(_current_settings))
                 elif self.path == "/health":
                     self._json_response({"status": "ok"})
                 else:
@@ -373,6 +422,24 @@ class VisualizationServer:
                             self._json_response({"error": str(e)}, 500)
                     else:
                         self._json_response({"error": "no printer url"}, 500)
+
+                elif self.path == "/api/settings":
+                    global _current_settings
+                    valid_colors = list(COLOR_PROFILES.keys())
+                    tc = data.get("target_color")
+                    ec = data.get("extruder_color")
+                    with _settings_lock:
+                        if tc and tc in valid_colors:
+                            _current_settings["target_color"] = tc
+                        if ec and ec in valid_colors:
+                            _current_settings["extruder_color"] = ec
+                        _save_settings(_current_settings)
+                        # Reset tracker when colors change
+                        tracker = getattr(viz, "_red_tracker", None)
+                        if tracker:
+                            tracker.reset()
+                        logger.info(f"Settings updated: {_current_settings}")
+                        self._json_response(dict(_current_settings))
 
                 else:
                     self.send_error(404)
@@ -830,6 +897,22 @@ TWIN_HTML = r"""<!DOCTYPE html>
   #controlsInfo .cat{color:#fa0;font-size:8px;text-transform:uppercase;padding-top:4px}
   /* ── Virtual joystick (mobile) ───────────────── */
   .vj-zone{display:none;position:fixed;bottom:20px;z-index:30;touch-action:none}
+  /* ── Color picker panel ─────────────────────── */
+  #colorPanel{position:absolute;top:50%;left:10px;transform:translateY(-50%);z-index:20;
+    display:flex;flex-direction:column;gap:8px;user-select:none}
+  #colorPanel .cp-label{color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1px;text-align:center}
+  .color-btn{width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,255,255,0.15);
+    cursor:pointer;transition:all 0.2s;position:relative;display:flex;align-items:center;justify-content:center}
+  .color-btn:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.5)}
+  .color-btn.active{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,0.6);transform:scale(1.1)}
+  .color-btn .cb-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid transparent;transition:border-color 0.2s}
+  .color-btn.active .cb-ring{border-color:rgba(255,255,255,0.4)}
+  .color-btn .cb-icon{font-size:14px;color:rgba(0,0,0,0.6);font-weight:bold;text-shadow:0 0 2px rgba(255,255,255,0.3)}
+  .cb-red{background:radial-gradient(circle at 35% 35%,#ff6666,#cc0000)}
+  .cb-green{background:radial-gradient(circle at 35% 35%,#66ff66,#00aa00)}
+  .cb-yellow{background:radial-gradient(circle at 35% 35%,#ffff66,#ccaa00)}
+  .cb-blue{background:radial-gradient(circle at 35% 35%,#6688ff,#0044cc)}
+  .cb-white{background:radial-gradient(circle at 35% 35%,#ffffff,#aaaaaa)}
   #vjXY{left:20px}
   #vjZ{right:20px}
   .vj-base{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);
@@ -874,6 +957,9 @@ TWIN_HTML = r"""<!DOCTYPE html>
     #vjZ .vj-base{width:64px;height:130px;border-radius:32px}
     #vjZ .vj-knob{width:48px;height:48px}
     #mobileBar{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-left:env(safe-area-inset-left,10px);padding-right:env(safe-area-inset-right,10px)}
+    #colorPanel{top:auto;bottom:calc(170px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);flex-direction:row}
+    #colorPanel .cp-label{display:none}
+    .color-btn{width:38px;height:38px}
   }
   /* Also apply via JS class for manual override */
   .force-mobile #ctrlPanel{display:none}
@@ -893,6 +979,9 @@ TWIN_HTML = r"""<!DOCTYPE html>
   .force-mobile #vjZ .vj-base{width:64px;height:130px;border-radius:32px}
   .force-mobile #vjZ .vj-knob{width:48px;height:48px}
   .force-mobile #mobileBar{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-left:env(safe-area-inset-left,10px);padding-right:env(safe-area-inset-right,10px)}
+  .force-mobile #colorPanel{top:auto;bottom:calc(170px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);flex-direction:row}
+  .force-mobile #colorPanel .cp-label{display:none}
+  .force-mobile .color-btn{width:38px;height:38px}
 </style>
 </head>
 <body>
@@ -902,6 +991,15 @@ TWIN_HTML = r"""<!DOCTYPE html>
   <div class="pos" id="posHud">X-- Y-- Z--</div>
   <div class="status" id="statusHud">Connecting...</div>
   <div id="distHud" style="color:#ff0">--</div>
+</div>
+<!-- Color picker: select target color to track -->
+<div id="colorPanel">
+  <div class="cp-label">Target</div>
+  <div class="color-btn cb-red active" data-color="red" onclick="setTargetColor('red')" title="Track red"><span class="cb-ring"></span><span class="cb-icon">&#9678;</span></div>
+  <div class="color-btn cb-green" data-color="green" onclick="setTargetColor('green')" title="Track green"><span class="cb-ring"></span><span class="cb-icon" style="display:none">&#9678;</span></div>
+  <div class="color-btn cb-yellow" data-color="yellow" onclick="setTargetColor('yellow')" title="Track yellow"><span class="cb-ring"></span><span class="cb-icon" style="display:none">&#9678;</span></div>
+  <div class="color-btn cb-blue" data-color="blue" onclick="setTargetColor('blue')" title="Track blue"><span class="cb-ring"></span><span class="cb-icon" style="display:none">&#9678;</span></div>
+  <div class="color-btn cb-white" data-color="white" onclick="setTargetColor('white')" title="Track white"><span class="cb-ring"></span><span class="cb-icon" style="display:none">&#9678;</span></div>
 </div>
 <div id="ctrlPanel">
   <div class="section">
@@ -955,6 +1053,16 @@ TWIN_HTML = r"""<!DOCTYPE html>
   </div>
   <div class="section">
     <h4>Settings</h4>
+    <div class="toggle-row">
+      <label>Extruder Color</label>
+      <select id="extruderColor" onchange="setExtruderColor(this.value)" style="background:#111;border:1px solid #444;color:#0df;padding:2px 4px;border-radius:3px;font-family:inherit;font-size:10px">
+        <option value="blue" style="color:#4488ff">Blue</option>
+        <option value="red" style="color:#ff4444">Red</option>
+        <option value="green" style="color:#44ff44">Green</option>
+        <option value="yellow" style="color:#ffff00">Yellow</option>
+        <option value="white" style="color:#ffffff">White</option>
+      </select>
+    </div>
     <div class="toggle-row">
       <label>Invert X</label>
       <label class="toggle"><input type="checkbox" id="invertX"><span class="slider"></span></label>
@@ -1477,6 +1585,61 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
+// ── Color settings (persisted in localStorage + backend) ────────────────
+const COLORS=['red','green','yellow','blue','white'];
+let targetColor=localStorage.getItem('twin_target_color')||'red';
+let extruderColor=localStorage.getItem('twin_extruder_color')||'blue';
+
+function updateColorBtnUI(){
+  document.querySelectorAll('#colorPanel .color-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.color===targetColor);
+    // Show crosshair icon on active
+    const icon=b.querySelector('.cb-icon');
+    if(icon) icon.style.display=b.dataset.color===targetColor?'':'none';
+  });
+}
+
+async function setTargetColor(c){
+  if(!COLORS.includes(c)||c===targetColor) return;
+  targetColor=c;
+  localStorage.setItem('twin_target_color',c);
+  updateColorBtnUI();
+  await api('/api/settings',{target_color:c});
+  ctrlLog('Target: '+c,'ok');
+}
+window.setTargetColor=setTargetColor;
+
+async function setExtruderColor(c){
+  if(!COLORS.includes(c)||c===extruderColor) return;
+  extruderColor=c;
+  localStorage.setItem('twin_extruder_color',c);
+  if($('extruderColor')) $('extruderColor').value=c;
+  await api('/api/settings',{extruder_color:c});
+  ctrlLog('Extruder: '+c,'ok');
+}
+window.setExtruderColor=setExtruderColor;
+
+// Load settings from backend on startup, sync with localStorage
+(async()=>{
+  try{
+    const r=await fetch('/api/settings');
+    if(r.ok){
+      const s=await r.json();
+      if(s.target_color&&COLORS.includes(s.target_color)){
+        targetColor=s.target_color;
+        localStorage.setItem('twin_target_color',targetColor);
+      }
+      if(s.extruder_color&&COLORS.includes(s.extruder_color)){
+        extruderColor=s.extruder_color;
+        localStorage.setItem('twin_extruder_color',extruderColor);
+      }
+    }
+  }catch(e){}
+  // Apply loaded settings to UI
+  updateColorBtnUI();
+  if($('extruderColor')) $('extruderColor').value=extruderColor;
+})();
+
 // ── SSE ─────────────────────────────────────────────────────────────────
 const evtSource=new EventSource('/api/events');
 evtSource.onmessage=(e)=>{
@@ -1770,11 +1933,21 @@ class RedTracker:
 TARGET_LOCK_RADIUS_PX = 200
 
 
+def _build_color_mask(hsv: np.ndarray, color: str) -> np.ndarray:
+    """Build a combined binary mask for the given color name."""
+    ranges = get_color_ranges(color)
+    mask = cv2.inRange(hsv, ranges[0][0], ranges[0][1])
+    for lo, hi in ranges[1:]:
+        mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lo, hi))
+    return mask
+
+
 def detect_red(frame: np.ndarray,
                last_cx: int | None = None,
                last_cy: int | None = None) -> RedDetection:
-    """Detect a red region in a BGR frame.
+    """Detect the target-color region in a BGR frame.
 
+    Uses the currently configured target_color from settings.
     If last_cx/last_cy are given (target lock), prefer contours near the
     locked position, weighted by area so larger blobs win over tiny noise.
     Reject detections that jump more than TARGET_LOCK_RADIUS_PX.
@@ -1784,10 +1957,8 @@ def detect_red(frame: np.ndarray,
     # Convert to HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    # Red wraps around HSV hue, so combine two ranges
-    mask1 = cv2.inRange(hsv, RED_LOW1, RED_HIGH1)
-    mask2 = cv2.inRange(hsv, RED_LOW2, RED_HIGH2)
-    mask = cv2.bitwise_or(mask1, mask2)
+    # Build mask from configured target color
+    mask = _build_color_mask(hsv, get_target_color())
 
     # Morphological cleanup
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
@@ -1856,9 +2027,9 @@ def detect_red(frame: np.ndarray,
 
 
 def detect_blue(frame: np.ndarray) -> BlueDetection:
-    """Detect the blue extruder marker in a BGR frame. Returns largest blue contour."""
+    """Detect the extruder marker in a BGR frame. Uses configured extruder_color."""
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, BLUE_LOW, BLUE_HIGH)
+    mask = _build_color_mask(hsv, get_extruder_color())
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -2639,6 +2810,7 @@ def run_visual_servo(
     last_cy: int | None = det.centroid_y if (frame is not None and det.found) else None
     red_lost_count: int = 0
     red_tracker = RedTracker()
+    viz._red_tracker = red_tracker  # expose to /api/settings handler
     if frame is not None and det.found:
         red_tracker.update(det)
 

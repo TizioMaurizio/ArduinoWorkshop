@@ -26,6 +26,9 @@ config.yaml
 # Printer home timestamp (auto-generated, ephemeral)
 .last_home
 
+# Servo settings (user-specific, auto-generated)
+.servo_settings.json
+
 # OS artifacts
 Thumbs.db
 Desktop.ini
