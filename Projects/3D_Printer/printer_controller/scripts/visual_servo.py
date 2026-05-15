@@ -746,6 +746,7 @@ TWIN_HTML = r"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Digital Twin - 3D Printer</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
@@ -827,6 +828,53 @@ TWIN_HTML = r"""<!DOCTYPE html>
   #controlsInfo td{padding:1px 0}
   #controlsInfo td:first-child{color:#0df;font-weight:bold;width:38%}
   #controlsInfo .cat{color:#fa0;font-size:8px;text-transform:uppercase;padding-top:4px}
+  /* ── Virtual joystick (mobile) ───────────────── */
+  .vj-zone{display:none;position:fixed;bottom:20px;z-index:30;touch-action:none}
+  #vjXY{left:20px}
+  #vjZ{right:20px}
+  .vj-base{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);
+    border:2px solid rgba(255,255,255,0.2);position:relative}
+  .vj-knob{width:50px;height:50px;border-radius:50%;background:rgba(100,180,255,0.5);
+    border:2px solid rgba(100,180,255,0.8);position:absolute;
+    top:50%;left:50%;transform:translate(-50%,-50%);transition:none;pointer-events:none}
+  .vj-label{text-align:center;color:#888;font-size:10px;margin-top:4px}
+  #vjZ .vj-base{width:60px;height:120px;border-radius:30px}
+  #vjZ .vj-knob{width:44px;height:44px}
+  /* ── Mobile toolbar ─────────────────────── */
+  #mobileBar{display:none;position:fixed;top:0;left:0;right:0;z-index:25;
+    background:rgba(0,0,0,0.85);padding:6px 10px;gap:6px;align-items:center;
+    border-bottom:1px solid #333;font-size:12px}
+  #mobileBar button{background:#1a1a2e;border:1px solid #444;color:#ccc;
+    padding:8px 14px;border-radius:6px;font-size:12px;font-family:inherit;
+    cursor:pointer;touch-action:manipulation}
+  #mobileBar .m-estop{background:#600!important;color:#f44!important;border-color:#f44!important}
+  #mobileBar .m-mode{min-width:80px}
+  #mobileBar .m-mode.auto{color:#4f4;border-color:#4f4}
+  #mobileBar .m-mode.manual{color:#fa0;border-color:#fa0}
+  #mobileBar .m-step{display:flex;align-items:center;gap:4px}
+  #mobileBar .m-step input{width:50px;background:#111;border:1px solid #444;color:#0df;
+    padding:6px 4px;border-radius:4px;font-family:inherit;font-size:13px;text-align:center}
+  #mobileBar .m-step span{color:#888;font-size:11px}
+  /* ── Responsive: only apply on narrow screens with coarse pointer (actual phones/tablets) ── */
+  @media (max-width:1024px) and (pointer:coarse){
+    #ctrlPanel{display:none}
+    #legend{bottom:auto;top:50px;left:10px}
+    #camFeed{bottom:auto;top:50px;left:auto;right:10px;width:140px}
+    #camFeed:hover{width:140px}
+    .vj-zone{display:block}
+    #mobileBar{display:flex}
+    #hud{top:50px}
+    #hud .title{display:none}
+  }
+  /* Also apply via JS class for manual override */
+  .force-mobile #ctrlPanel{display:none}
+  .force-mobile #legend{bottom:auto;top:50px;left:10px}
+  .force-mobile #camFeed{bottom:auto;top:50px;left:auto;right:10px;width:140px}
+  .force-mobile #camFeed:hover{width:140px}
+  .force-mobile .vj-zone{display:block}
+  .force-mobile #mobileBar{display:flex}
+  .force-mobile #hud{top:50px}
+  .force-mobile #hud .title{display:none}
 </style>
 </head>
 <body>
@@ -929,6 +977,27 @@ TWIN_HTML = r"""<!DOCTYPE html>
       </table>
     </div>
   </div>
+</div>
+<!-- Mobile toolbar -->
+<div id="mobileBar">
+  <button class="m-mode auto" id="mBtnMode" onclick="toggleMode()">AUTO</button>
+  <div class="m-step">
+    <span>Step</span>
+    <input type="number" id="mStepSize" value="5" min="0.1" max="50" step="0.5"
+           onchange="document.getElementById('stepSize').value=this.value">
+    <span>mm</span>
+  </div>
+  <button onclick="sendHome()">&#8962; Home</button>
+  <button class="m-estop" onclick="emergencyStop()">&#9724; STOP</button>
+</div>
+<!-- Virtual joysticks (touch devices) -->
+<div class="vj-zone" id="vjXY">
+  <div class="vj-base" id="vjXYBase"><div class="vj-knob" id="vjXYKnob"></div></div>
+  <div class="vj-label">XY Jog</div>
+</div>
+<div class="vj-zone" id="vjZ">
+  <div class="vj-base" id="vjZBase"><div class="vj-knob" id="vjZKnob"></div></div>
+  <div class="vj-label">Z</div>
 </div>
 <img id="camFeed" src="/stream" title="Live annotated feed">
 <div id="legend">
@@ -1426,6 +1495,119 @@ function animate(){
   renderer.render(scene,camera);
 }
 animate();
+
+// ── Touch detection & mobile mode ────────────────────────────────────
+// Detect actual mobile: narrow screen + coarse pointer (not just touch-capable laptops)
+const isMobile = window.matchMedia('(pointer:coarse)').matches && window.innerWidth < 1024;
+if(isMobile) document.body.classList.add('force-mobile');
+
+// ── Virtual joystick ───────────────────────────────────────────────
+function setupJoystick(baseId, knobId, onMove, onEnd){
+  const base=document.getElementById(baseId);
+  const knob=document.getElementById(knobId);
+  if(!base||!knob) return;
+  let active=false, touchId=null;
+  const bw=base.offsetWidth, bh=base.offsetHeight;
+  const kw=knob.offsetWidth, kh=knob.offsetHeight;
+  const maxR=Math.min(bw,bh)/2 - Math.max(kw,kh)/2;
+
+  function getPos(touch){
+    const r=base.getBoundingClientRect();
+    const cx=r.left+bw/2, cy=r.top+bh/2;
+    let dx=touch.clientX-cx, dy=touch.clientY-cy;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist>maxR){dx=dx/dist*maxR; dy=dy/dist*maxR;}
+    return {dx, dy, nx:dx/maxR, ny:dy/maxR};
+  }
+
+  function moveKnob(dx,dy){
+    knob.style.transform='translate(calc(-50% + '+dx+'px), calc(-50% + '+dy+'px))';
+  }
+
+  base.addEventListener('touchstart',(e)=>{
+    e.preventDefault();
+    if(active) return;
+    const t=e.changedTouches[0];
+    touchId=t.identifier; active=true;
+    switchToManual();
+    const p=getPos(t); moveKnob(p.dx,p.dy); onMove(p.nx,p.ny);
+  },{passive:false});
+
+  base.addEventListener('touchmove',(e)=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      if(t.identifier===touchId){
+        const p=getPos(t); moveKnob(p.dx,p.dy); onMove(p.nx,p.ny);
+      }
+    }
+  },{passive:false});
+
+  function endTouch(){
+    active=false; touchId=null;
+    knob.style.transform='translate(-50%,-50%)';
+    onEnd();
+  }
+  base.addEventListener('touchend',endTouch);
+  base.addEventListener('touchcancel',endTouch);
+}
+
+// Continuous jog while joystick is held
+let vjXYInterval=null, vjZInterval=null;
+let vjNX=0, vjNY=0, vjNZ=0;
+
+function getStepMobile(){
+  const el=document.getElementById('mStepSize');
+  return el ? parseFloat(el.value)||5 : parseFloat($('stepSize').value)||5;
+}
+
+setupJoystick('vjXYBase','vjXYKnob',
+  (nx,ny)=>{
+    vjNX=nx; vjNY=ny;
+    if(!vjXYInterval){
+      vjXYInterval=setInterval(()=>{
+        if(Math.abs(vjNX)>0.15 || Math.abs(vjNY)>0.15){
+          const s=getStepMobile();
+          // Scale step by joystick displacement
+          const mag=Math.sqrt(vjNX*vjNX+vjNY*vjNY);
+          const scale=Math.min(1, mag);
+          const dx=Math.round(vjNX*10)/10, dy=Math.round(vjNY*10)/10;
+          if(Math.abs(dx)>0.1||Math.abs(dy)>0.1)
+            api('/api/jog',{x:dx*s*scale, y:dy*s*scale, z:0});
+        }
+      }, 200);
+    }
+  },
+  ()=>{
+    vjNX=0; vjNY=0;
+    if(vjXYInterval){clearInterval(vjXYInterval); vjXYInterval=null;}
+  }
+);
+
+setupJoystick('vjZBase','vjZKnob',
+  (nx,ny)=>{
+    vjNZ=-ny; // up = positive Z
+    if(!vjZInterval){
+      vjZInterval=setInterval(()=>{
+        if(Math.abs(vjNZ)>0.2){
+          const s=getStepMobile();
+          const dz=vjNZ>0?1:-1;
+          api('/api/jog',{x:0, y:0, z:dz*s*Math.abs(vjNZ)});
+        }
+      }, 300);
+    }
+  },
+  ()=>{
+    vjNZ=0;
+    if(vjZInterval){clearInterval(vjZInterval); vjZInterval=null;}
+  }
+);
+
+// Sync mobile step input with desktop
+if($('mStepSize')){
+  $('mStepSize').addEventListener('input',()=>{
+    $('stepSize').value=$('mStepSize').value;
+  });
+}
 </script>
 </body>
 </html>
