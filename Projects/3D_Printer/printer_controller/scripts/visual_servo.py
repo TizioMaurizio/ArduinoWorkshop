@@ -86,33 +86,24 @@ PRINTER_URL = "http://127.0.0.1:8765"
 CAMERA_URL = "http://127.0.0.1:8766"
 
 # Red detection HSV ranges (wraps around 0/180 in OpenCV HSV)
-# Widened for resilience to warm/cool/dim lighting conditions.
-# Range 1: low red (0-15) — covers orange-reds
-RED_LOW1 = np.array([0, 35, 35])
-RED_HIGH1 = np.array([15, 255, 255])
-# Range 2: high red (155-180) — covers pink-reds / magenta-reds
-RED_LOW2 = np.array([155, 35, 35])
+# Range 1: low red (0-10)
+RED_LOW1 = np.array([0, 50, 50])
+RED_HIGH1 = np.array([10, 255, 255])
+# Range 2: high red (165-180)
+RED_LOW2 = np.array([165, 50, 50])
 RED_HIGH2 = np.array([180, 255, 255])
 
 # Blue detection HSV range (extruder marker)
-BLUE_LOW = np.array([95, 60, 40])
-BLUE_HIGH = np.array([135, 255, 255])
+BLUE_LOW = np.array([95, 80, 50])
+BLUE_HIGH = np.array([130, 255, 255])
 
 # Minimum contour area (pixels).
 # Initial acquisition requires a large blob; once locked, allow smaller (partial occlusion).
-MIN_CONTOUR_AREA = 200           # floor for any detection
-MIN_CONTOUR_AREA_ACQUIRE = 800   # floor to acquire a NEW target (no lock)
+MIN_CONTOUR_AREA = 300           # floor for any detection
+MIN_CONTOUR_AREA_ACQUIRE = 1500  # floor to acquire a NEW target (no lock)
 
 # When red centroid is within this many pixels of blue (extruder) marker, we've arrived
 ARRIVAL_THRESHOLD_PX = 40
-
-# Occlusion-aware lock: when target was this close to extruder, assume
-# occlusion rather than target loss.  Hold lock for longer and anchor to blue.
-OCCLUSION_PROXIMITY_PX = 120     # distance to blue below which occlusion is assumed
-OCCLUSION_MISS_LIMIT = 150       # frames to hold lock during occlusion (vs 30 normal)
-NORMAL_MISS_LIMIT = 30           # frames to hold lock in normal conditions
-REACQUIRE_PROXIMITY_PX = 250     # when re-acquiring after occlusion, new target must be
-                                 # within this distance of the blue marker
 
 # Movement step size in mm per iteration
 STEP_MM = 1.0
@@ -212,11 +203,6 @@ class TrackingState:
     # Blue marker pixel coords (for twin red-target estimation)
     blue_px_x: int | None = None
     blue_px_y: int | None = None
-    # Virtual red estimate — persists through occlusion
-    est_red_px_x: int | None = None   # estimated red pixel X
-    est_red_px_y: int | None = None   # estimated red pixel Y
-    est_red_confidence: float = 0.0   # 1.0 = just seen, decays toward 0
-    est_red_is_virtual: bool = False  # True when estimate, False when direct detection
 
 
 # ---------------------------------------------------------------------------
@@ -485,10 +471,6 @@ class VisualizationServer:
             "red_area": last_det.area if (last_det and last_det.found) else None,
             "blue_x": t.blue_px_x,
             "blue_y": t.blue_px_y,
-            "est_red_x": t.est_red_px_x,
-            "est_red_y": t.est_red_px_y,
-            "est_red_conf": round(t.est_red_confidence, 2) if t.est_red_confidence else 0,
-            "est_red_virtual": t.est_red_is_virtual,
         }
 
     def stop(self) -> None:
@@ -781,10 +763,10 @@ TWIN_HTML = r"""<!DOCTYPE html>
   #modePill.auto{background:#1a6622;color:#4f4;border:1px solid #4f4}
   #modePill.manual{background:#663300;color:#fa0;border:1px solid #fa0;animation:pulse-manual 1s infinite}
   @keyframes pulse-manual{0%,100%{opacity:1}50%{opacity:0.7}}
-  #camFeed{position:absolute;bottom:10px;left:10px;width:400px;border:2px solid #333;
-           border-radius:6px;opacity:0.9;transition:width 0.3s,opacity 0.2s;z-index:5;cursor:pointer}
-  #camFeed:hover{opacity:1;width:520px}
-  #legend{position:absolute;bottom:10px;left:420px;background:rgba(0,0,0,0.7);
+  #camFeed{position:absolute;bottom:10px;left:10px;width:260px;border:2px solid #333;
+           border-radius:6px;opacity:0.85;transition:width 0.3s,opacity 0.2s;z-index:5}
+  #camFeed:hover{opacity:1;width:380px}
+  #legend{position:absolute;bottom:10px;left:280px;background:rgba(0,0,0,0.7);
           padding:8px 12px;border-radius:6px;font-size:11px;pointer-events:none;z-index:10}
   #legend span{margin-right:12px}
   .cBlue{color:#4488ff} .cRed{color:#ff4444} .cGreen{color:#44ff44} .cYellow{color:#ffff00}
@@ -1096,7 +1078,7 @@ const matFrame =new THREE.MeshStandardMaterial({color:0x222228,metalness:0.6,rou
 const matBed   =new THREE.MeshStandardMaterial({color:0x1a6622,metalness:0.2,roughness:0.7});
 const matExt   =new THREE.MeshStandardMaterial({color:0x888888,metalness:0.5,roughness:0.3});
 const matBlue  =new THREE.MeshStandardMaterial({color:0x2266ff,emissive:0x112244,roughness:0.6});
-const matRed   =new THREE.MeshStandardMaterial({color:0xff2222,emissive:0x441111,roughness:0.6,transparent:true});
+const matRed   =new THREE.MeshStandardMaterial({color:0xff2222,emissive:0x441111,roughness:0.6});
 const matRod   =new THREE.MeshStandardMaterial({color:0x999999,metalness:0.8,roughness:0.15});
 const matCam   =new THREE.MeshStandardMaterial({color:0xdddd00,emissive:0x333300,roughness:0.5});
 
@@ -1274,34 +1256,34 @@ function updateScene(){
   // ── Red target position estimation ────────────────────────────
   // Use camera pixel offset between blue (extruder) and red (target)
   // to estimate the target's bed position.  Works in both auto and manual.
-  // Falls back to virtual estimate from backend when red is occluded.
   const visualOnly=$('visualOnly')&&$('visualOnly').checked;
-  let redVisible = pState.red_found && pState.red_x!=null;
-  let useEstimate = !redVisible && pState.est_red_x!=null && pState.est_red_conf>0;
-  // Effective red pixel coords (real or virtual estimate)
-  let effRedX = redVisible ? pState.red_x : (useEstimate ? pState.est_red_x : null);
-  let effRedY = redVisible ? pState.red_y : (useEstimate ? pState.est_red_y : null);
-  if(effRedX!=null){
+  if(pState.red_found && pState.red_x!=null){
     if(visualOnly){
+      // Pure visual: map red pixel coords directly to bed coords
+      // Camera covers roughly the bed area; map pixel range to 0..BED
+      // Frame is 640x480; bed fills most of the view
       const camW=640, camH=480;
-      const rawX = (1 - effRedX/camW) * BED;
-      const rawY = (effRedY/camH) * BED;
+      // Camera right = printer X-, camera down = printer Y+
+      const rawX = (1 - pState.red_x/camW) * BED;  // invert X axis
+      const rawY = (pState.red_y/camH) * BED;
       const estX = Math.max(0, Math.min(BED, rawX));
       const estY = Math.max(0, Math.min(BED, rawY));
-      const alpha = redVisible ? 0.2 : 0.08;
+      const alpha = 0.2;
       targetEstX = alpha*estX + (1-alpha)*targetEstX;
       targetEstY = alpha*estY + (1-alpha)*targetEstY;
     } else if(pState.blue_x!=null){
-      const dpx = effRedX - pState.blue_x;
-      const dpy = effRedY - pState.blue_y;
+      // Odometry + visual: extruder position + camera pixel offset
+      const dpx = pState.red_x - pState.blue_x;
+      const dpy = pState.red_y - pState.blue_y;
       const offX = dpx * MM_PER_PX * CAM_RIGHT_TO_X;
       const offY = dpy * MM_PER_PX * CAM_DOWN_TO_Y;
       const estX = Math.max(0, Math.min(BED, pState.x + offX));
       const estY = Math.max(0, Math.min(BED, pState.y + offY));
-      const alpha = redVisible ? 0.15 : 0.05;
+      const alpha = 0.15;
       targetEstX = alpha*estX + (1-alpha)*targetEstX;
       targetEstY = alpha*estY + (1-alpha)*targetEstY;
     } else if(pState.dx!==0 && pState.dy!==0){
+      // Fallback: use move-direction estimation (auto-tracking only)
       const distMm = (pState.distance||0) * MM_PER_PX;
       if(distMm > 5){
         const moveMag = Math.sqrt(pState.dx*pState.dx + pState.dy*pState.dy);
@@ -1325,18 +1307,9 @@ function updateScene(){
     redRing.material.opacity=0.3+0.3*Math.sin(t*1.5);
     redRing.rotation.z=-t*0.3;
     redTarget.material.emissive.setHex(0x441111);
-    redTarget.material.opacity=1.0;
-  } else if(useEstimate){
-    // Virtual estimate — pulsing dim, semi-transparent
-    const conf=pState.est_red_conf||0;
-    redRing.material.opacity=(0.1+0.15*Math.sin(t*2))*conf;
-    redRing.rotation.z=-t*0.3;
-    redTarget.material.emissive.setHex(0x331122);
-    redTarget.material.opacity=0.3+0.4*conf;
   } else {
     redRing.material.opacity=0.1;
     redTarget.material.emissive.setHex(0x220808);
-    redTarget.material.opacity=0.3;
   }
 
   // ── Laser line (nozzle tip to red target) ────────────────────────
@@ -1346,7 +1319,7 @@ function updateScene(){
   const ep=new THREE.Vector3(nozzleX, nozzleTipY, nozzleZ);
   const rp=new THREE.Vector3(targetEstX, BED_T+LEGO_H, targetEstY);
   laserGeo.setFromPoints([ep, rp]);
-  laserMat.opacity = pState.red_found ? 0.6 : (useEstimate ? 0.2*pState.est_red_conf : 0.05);
+  laserMat.opacity = pState.red_found ? 0.6 : 0.15;
 
   // ── Breadcrumb trail ─────────────────────────────────────────────
   if(pState.phase==='TRACKING'){
@@ -1519,9 +1492,6 @@ evtSource.onmessage=(e)=>{
     pState.red_x=s.red_x; pState.red_y=s.red_y;
     pState.blue_x=s.blue_x; pState.blue_y=s.blue_y;
     pState.iteration=s.iteration||0;
-    pState.est_red_x=s.est_red_x; pState.est_red_y=s.est_red_y;
-    pState.est_red_conf=s.est_red_conf||0;
-    pState.est_red_virtual=s.est_red_virtual||false;
   }catch(err){}
 };
 evtSource.onerror=()=>{
@@ -1802,30 +1772,17 @@ TARGET_LOCK_RADIUS_PX = 200
 
 def detect_red(frame: np.ndarray,
                last_cx: int | None = None,
-               last_cy: int | None = None,
-               blue_hint: tuple[int, int] | None = None) -> RedDetection:
+               last_cy: int | None = None) -> RedDetection:
     """Detect a red region in a BGR frame.
 
     If last_cx/last_cy are given (target lock), prefer contours near the
     locked position, weighted by area so larger blobs win over tiny noise.
     Reject detections that jump more than TARGET_LOCK_RADIUS_PX.
-
-    If blue_hint is given (cx, cy of the blue marker) and no lock is active,
-    prefer contours near the blue marker over distant ones — prevents jumping
-    to a false red across the frame after occlusion near the extruder.
     """
     h, w = frame.shape[:2]
 
-    # Light-noise reduction: small blur to suppress speckles
-    blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-
     # Convert to HSV
-    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-
-    # CLAHE on V channel — normalises brightness across varying lighting
-    v_chan = hsv[:, :, 2]
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    hsv[:, :, 2] = clahe.apply(v_chan)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Red wraps around HSV hue, so combine two ranges
     mask1 = cv2.inRange(hsv, RED_LOW1, RED_HIGH1)
@@ -1875,42 +1832,14 @@ def detect_red(frame: np.ndarray,
                 best_contour, best_area = c, area
                 best_cx, best_cy = cx, cy
     else:
-        # No lock — pick largest contour, but prefer near blue marker if hint given
-        if blue_hint is not None:
-            bx, by = blue_hint
-            # Filter to contours within REACQUIRE_PROXIMITY_PX of blue marker
-            near_blue = []
-            for c, area in valid:
-                M = cv2.moments(c)
-                if M["m00"] == 0:
-                    continue
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                d = math.sqrt((cx - bx) ** 2 + (cy - by) ** 2)
-                if d <= REACQUIRE_PROXIMITY_PX:
-                    near_blue.append((c, area, cx, cy))
-            if near_blue:
-                # Among contours near blue, pick largest
-                best_item = max(near_blue, key=lambda x: x[1])
-                best_contour, best_area = best_item[0], best_item[1]
-                best_cx, best_cy = best_item[2], best_item[3]
-            else:
-                # Nothing near blue — fall back to largest overall
-                largest_c, largest_a = max(valid, key=lambda x: x[1])
-                M = cv2.moments(largest_c)
-                if M["m00"] == 0:
-                    return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
-                best_contour, best_area = largest_c, largest_a
-                best_cx = int(M["m10"] / M["m00"])
-                best_cy = int(M["m01"] / M["m00"])
-        else:
-            largest_c, largest_a = max(valid, key=lambda x: x[1])
-            M = cv2.moments(largest_c)
-            if M["m00"] == 0:
-                return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
-            best_contour, best_area = largest_c, largest_a
-            best_cx = int(M["m10"] / M["m00"])
-            best_cy = int(M["m01"] / M["m00"])
+        # No lock — pick largest contour
+        largest_c, largest_a = max(valid, key=lambda x: x[1])
+        M = cv2.moments(largest_c)
+        if M["m00"] == 0:
+            return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
+        best_contour, best_area = largest_c, largest_a
+        best_cx = int(M["m10"] / M["m00"])
+        best_cy = int(M["m01"] / M["m00"])
 
     if best_contour is None:
         return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
@@ -1928,11 +1857,7 @@ def detect_red(frame: np.ndarray,
 
 def detect_blue(frame: np.ndarray) -> BlueDetection:
     """Detect the blue extruder marker in a BGR frame. Returns largest blue contour."""
-    blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-    v_chan = hsv[:, :, 2]
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    hsv[:, :, 2] = clahe.apply(v_chan)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, BLUE_LOW, BLUE_HIGH)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
@@ -2249,29 +2174,6 @@ def compute_movement(det: RedDetection, mapping: AxisMapping,
     return printer_dx, printer_dy
 
 
-def _draw_dashed_line(img: np.ndarray, pt1: tuple[int, int], pt2: tuple[int, int],
-                      color: tuple[int, int, int], thickness: int = 1, gap: int = 8) -> None:
-    """Draw a dashed line between two points."""
-    dx = pt2[0] - pt1[0]
-    dy = pt2[1] - pt1[1]
-    dist = math.sqrt(dx * dx + dy * dy)
-    if dist < 1:
-        return
-    ux, uy = dx / dist, dy / dist
-    drawn = 0.0
-    drawing = True
-    while drawn < dist:
-        seg = min(gap, dist - drawn)
-        x1 = int(pt1[0] + ux * drawn)
-        y1 = int(pt1[1] + uy * drawn)
-        x2 = int(pt1[0] + ux * (drawn + seg))
-        y2 = int(pt1[1] + uy * (drawn + seg))
-        if drawing:
-            cv2.line(img, (x1, y1), (x2, y2), color, thickness, cv2.LINE_AA)
-        drawn += gap
-        drawing = not drawing
-
-
 def annotate_frame(frame: np.ndarray, det: RedDetection,
                    tracking: TrackingState, mapping: AxisMapping | None = None,
                    blue: BlueDetection | None = None,
@@ -2384,40 +2286,6 @@ def annotate_frame(frame: np.ndarray, det: RedDetection,
     else:
         cv2.putText(out, "NO RED DETECTED", (rx - 90, ry + 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
-
-    # ── 4b. Virtual red estimate (ghost marker) ────────────────────────
-    if tracking.est_red_px_x is not None and tracking.est_red_confidence > 0:
-        ex, ey = tracking.est_red_px_x, tracking.est_red_px_y
-        conf = tracking.est_red_confidence
-        # Color fades from bright magenta (conf=1) to dim gray (conf→0)
-        alpha = max(0.15, min(1.0, conf))
-        ghost_color = (int(180 * alpha), int(50 * alpha), int(255 * alpha))  # magenta-ish in BGR
-
-        if tracking.est_red_is_virtual:
-            # Dashed circle for estimated position
-            radius = 14
-            for angle_start in range(0, 360, 30):
-                a1 = math.radians(angle_start)
-                a2 = math.radians(angle_start + 15)
-                p1 = (int(ex + radius * math.cos(a1)), int(ey + radius * math.sin(a1)))
-                p2 = (int(ex + radius * math.cos(a2)), int(ey + radius * math.sin(a2)))
-                cv2.line(out, p1, p2, ghost_color, 2, cv2.LINE_AA)
-            # Small X at center
-            cv2.line(out, (ex - 4, ey - 4), (ex + 4, ey + 4), ghost_color, 2, cv2.LINE_AA)
-            cv2.line(out, (ex - 4, ey + 4), (ex + 4, ey - 4), ghost_color, 2, cv2.LINE_AA)
-
-            # Dashed line from extruder to estimate
-            _draw_dashed_line(out, (rx, ry), (ex, ey), ghost_color, thickness=1, gap=8)
-
-            # Label
-            label = f"EST ({conf:.0%})"
-            cv2.putText(out, label, (ex + 18, ey - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, ghost_color, 1, cv2.LINE_AA)
-
-            # Estimated distance
-            est_dist = math.sqrt((ex - rx) ** 2 + (ey - ry) ** 2)
-            cv2.putText(out, f"~{est_dist:.0f}px", (ex + 18, ey + 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, ghost_color, 1, cv2.LINE_AA)
 
     # ── 6. Top HUD panel ───────────────────────────────────────────────
     _draw_hud_panel(out, tracking, det, markov_reason=markov_reason)
@@ -2771,8 +2639,6 @@ def run_visual_servo(
     last_cy: int | None = det.centroid_y if (frame is not None and det.found) else None
     red_lost_count: int = 0
     red_tracker = RedTracker()
-    occlusion_hold: bool = False      # True when we think target is just hidden by extruder
-    last_good_distance_px: float = float("inf")  # distance-to-blue at last accepted detection
     if frame is not None and det.found:
         red_tracker.update(det)
 
@@ -2806,10 +2672,8 @@ def run_visual_servo(
         if tracking.stopped:
             frame = fetch_frame(camera_url)
             if frame is not None:
+                det = detect_red(frame, last_cx, last_cy)
                 blue_det = detect_blue(frame)
-                # Pass blue position as hint for re-acquisition proximity filter
-                bh = (blue_det.centroid_x, blue_det.centroid_y) if blue_det.found else None
-                det = detect_red(frame, last_cx, last_cy, blue_hint=bh)
                 if det.found:
                     last_cx, last_cy = det.centroid_x, det.centroid_y
                 if blue_det.found:
@@ -2834,14 +2698,11 @@ def run_visual_servo(
             continue
 
         # Detect red (with target lock) and blue (extruder marker)
+        det = detect_red(frame, last_cx, last_cy)
         blue_det = detect_blue(frame)
         if blue_det.found:
             tracking.blue_px_x = blue_det.centroid_x
             tracking.blue_px_y = blue_det.centroid_y
-
-        # Pass blue position as hint for re-acquisition proximity filter
-        bh = (blue_det.centroid_x, blue_det.centroid_y) if blue_det.found else None
-        det = detect_red(frame, last_cx, last_cy, blue_hint=bh)
 
         # --- Markov temporal consistency filter ---
         markov_reason = ""
@@ -2851,12 +2712,6 @@ def run_visual_servo(
                 red_tracker.update(det, blue_det)
                 last_cx, last_cy = det.centroid_x, det.centroid_y
                 red_lost_count = 0
-                occlusion_hold = False
-                # Update distance-to-blue for occlusion logic
-                if blue_det.found:
-                    last_good_distance_px = math.sqrt(
-                        (det.centroid_x - blue_det.centroid_x) ** 2 +
-                        (det.centroid_y - blue_det.centroid_y) ** 2)
             else:
                 if should_log or markov_reason.startswith("comovement"):
                     logger.info(f"[{tracking.iteration}] Markov REJECT: {markov_reason} "
@@ -2866,55 +2721,18 @@ def run_visual_servo(
                     last_cx, last_cy = None, None
                     red_tracker.reset()
                     red_lost_count += 1
-                    occlusion_hold = False
-                    last_good_distance_px = float("inf")
                     if should_log:
                         logger.info(f"[{tracking.iteration}] Lock dropped by Markov filter, "
                                     f"re-acquiring with strict threshold")
                 det = RedDetection(found=False, frame_w=det.frame_w, frame_h=det.frame_h)
         else:
             red_lost_count += 1
-
-            # Decide miss limit: if target was near extruder, assume occlusion
-            if last_good_distance_px < OCCLUSION_PROXIMITY_PX:
-                miss_limit = OCCLUSION_MISS_LIMIT
-                if not occlusion_hold and last_cx is not None:
-                    occlusion_hold = True
-                    logger.info(f"[{tracking.iteration}] Occlusion hold — target was "
-                                f"{last_good_distance_px:.0f}px from extruder, "
-                                f"holding lock for up to {miss_limit} frames")
-            else:
-                miss_limit = NORMAL_MISS_LIMIT
-
-            # During occlusion hold, anchor lock position to blue marker
-            # so when the target reappears near the extruder it's in range
-            if occlusion_hold and blue_det.found and last_cx is not None:
-                last_cx = blue_det.centroid_x
-                last_cy = blue_det.centroid_y
-
-            if red_lost_count > miss_limit and last_cx is not None:
-                logger.info(f"[{tracking.iteration}] Dropping target lock after "
-                            f"{red_lost_count} misses (limit={miss_limit}, "
-                            f"occlusion={occlusion_hold})")
+            # After 30 consecutive misses, drop lock so re-acquisition uses stricter threshold
+            if red_lost_count > 30 and last_cx is not None:
+                logger.info(f"[{tracking.iteration}] Dropping target lock after {red_lost_count} misses")
                 last_cx, last_cy = None, None
                 red_tracker.reset()
-                occlusion_hold = False
-                last_good_distance_px = float("inf")
         tracking.detections.append(det)
-
-        # --- Virtual red estimate update ---
-        if det.found:
-            # Snap estimate to actual detection
-            tracking.est_red_px_x = det.centroid_x
-            tracking.est_red_px_y = det.centroid_y
-            tracking.est_red_confidence = 1.0
-            tracking.est_red_is_virtual = False
-        elif tracking.est_red_px_x is not None:
-            # Red not detected but we have a prior estimate.
-            # Camera is fixed, red target is static on bed → pixel position unchanged.
-            # Just decay confidence.
-            tracking.est_red_confidence = max(0.0, tracking.est_red_confidence - 1.0 / OCCLUSION_MISS_LIMIT)
-            tracking.est_red_is_virtual = True
 
         # Annotate and push to visualization server
         annotated = annotate_frame(frame, det, tracking, mapping, blue=blue_det,
