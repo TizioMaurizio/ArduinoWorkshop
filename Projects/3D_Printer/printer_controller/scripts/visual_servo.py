@@ -200,6 +200,9 @@ class TrackingState:
     # Manual control
     stopped: bool = False       # pause auto-tracking
     manual_queue: list[dict] = field(default_factory=list)  # pending manual commands
+    # Blue marker pixel coords (for twin red-target estimation)
+    blue_px_x: int | None = None
+    blue_px_y: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +469,8 @@ class VisualizationServer:
             "red_x": last_det.centroid_x if (last_det and last_det.found) else None,
             "red_y": last_det.centroid_y if (last_det and last_det.found) else None,
             "red_area": last_det.area if (last_det and last_det.found) else None,
+            "blue_x": t.blue_px_x,
+            "blue_y": t.blue_px_y,
         }
 
     def stop(self) -> None:
@@ -1129,11 +1134,16 @@ let lastTrailX=-1, lastTrailZ=-1;
 
 // ── State ───────────────────────────────────────────────────────────────
 let pState={x:0,y:0,z:10,dx:0,dy:0,phase:'--',status:'',distance:null,
-            stopped:false,red_found:false,iteration:0};
+            stopped:false,red_found:false,iteration:0,
+            red_x:null,red_y:null,blue_x:null,blue_y:null};
 
 // Estimated red target position on bed (mm)
 let targetEstX=BED/2, targetEstY=BED/2;
-const MM_PER_PX=0.5;  // rough camera-to-mm scale
+// Camera pixel-to-mm scale: calibrated from bed size vs camera FOV
+// 220mm bed spans roughly 440px in camera → ~0.5 mm/px
+const MM_PER_PX=0.5;
+// Axis mapping: camera right → printer X-, camera down → printer Y+
+const CAM_RIGHT_TO_X=-1.0, CAM_DOWN_TO_Y=1.0;
 
 function updateScene(){
   const t=performance.now()*0.003;
@@ -1152,25 +1162,34 @@ function updateScene(){
   // ── Red target estimated position ────────────────────────────────
   // When we have move commands, the target is roughly where the extruder
   // is heading. We accumulate with EMA for smooth motion.
-  if(pState.red_found && pState.dx !== undefined && pState.dy !== undefined){
-    // Target = current position + remaining offset (opposite of move direction)
-    // The extruder moves BY (dx,dy) each step TOWARD the target
-    // If distance_px is known, estimate total remaining distance
+  // ── Red target position estimation ────────────────────────────
+  // Use camera pixel offset between blue (extruder) and red (target)
+  // to estimate the target's bed position.  Works in both auto and manual.
+  if(pState.red_found && pState.red_x!=null && pState.blue_x!=null){
+    // Pixel offset: red minus blue
+    const dpx = pState.red_x - pState.blue_x;
+    const dpy = pState.red_y - pState.blue_y;
+    // Convert to mm and map to printer axes
+    const offX = dpx * MM_PER_PX * CAM_RIGHT_TO_X;
+    const offY = dpy * MM_PER_PX * CAM_DOWN_TO_Y;
+    // Target = extruder position + offset
+    const estX = Math.max(0, Math.min(BED, pState.x + offX));
+    const estY = Math.max(0, Math.min(BED, pState.y + offY));
+    // EMA smooth (faster when close, slower when far)
+    const alpha = 0.15;
+    targetEstX = alpha*estX + (1-alpha)*targetEstX;
+    targetEstY = alpha*estY + (1-alpha)*targetEstY;
+  } else if(pState.red_found && pState.dx!==0 && pState.dy!==0){
+    // Fallback: use move-direction estimation (auto-tracking only)
     const distMm = (pState.distance||0) * MM_PER_PX;
     if(distMm > 5){
-      // Direction from move commands (normalized)
       const moveMag = Math.sqrt(pState.dx*pState.dx + pState.dy*pState.dy);
       if(moveMag > 0.01){
         const estX = pState.x + (pState.dx/moveMag) * distMm;
         const estY = pState.y + (pState.dy/moveMag) * distMm;
-        // EMA smooth
         targetEstX = 0.1*Math.max(0,Math.min(BED,estX)) + 0.9*targetEstX;
         targetEstY = 0.1*Math.max(0,Math.min(BED,estY)) + 0.9*targetEstY;
       }
-    } else {
-      // Close to target, snap to printer position
-      targetEstX = 0.2*pState.x + 0.8*targetEstX;
-      targetEstY = 0.2*pState.y + 0.8*targetEstY;
     }
   }
   // Red cube on bed surface: X=targetEstX, Z=targetEstY (printer Y -> Three.js Z)
@@ -1366,6 +1385,8 @@ evtSource.onmessage=(e)=>{
     pState.distance=s.distance;
     pState.stopped=s.stopped;
     pState.red_found=s.red_found||false;
+    pState.red_x=s.red_x; pState.red_y=s.red_y;
+    pState.blue_x=s.blue_x; pState.blue_y=s.blue_y;
     pState.iteration=s.iteration||0;
   }catch(err){}
 };
@@ -2438,6 +2459,9 @@ def run_visual_servo(
                 blue_det = detect_blue(frame)
                 if det.found:
                     last_cx, last_cy = det.centroid_x, det.centroid_y
+                if blue_det.found:
+                    tracking.blue_px_x = blue_det.centroid_x
+                    tracking.blue_px_y = blue_det.centroid_y
                 tracking.detections.append(det)
                 annotated = annotate_frame(frame, det, tracking, mapping, blue=blue_det)
                 viz.update(annotated, frame)
@@ -2459,6 +2483,9 @@ def run_visual_servo(
         # Detect red (with target lock) and blue (extruder marker)
         det = detect_red(frame, last_cx, last_cy)
         blue_det = detect_blue(frame)
+        if blue_det.found:
+            tracking.blue_px_x = blue_det.centroid_x
+            tracking.blue_px_y = blue_det.centroid_y
 
         # --- Markov temporal consistency filter ---
         markov_reason = ""
