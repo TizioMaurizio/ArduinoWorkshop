@@ -797,6 +797,27 @@ TWIN_HTML = r"""<!DOCTYPE html>
   #ctrlLog div{padding:1px 0}
   #ctrlLog .ok{color:#4a4} #ctrlLog .err{color:#f44}
   .keys-hint{color:#555;font-size:9px;text-align:center;margin-top:4px;line-height:1.4}
+  /* ── Settings & info ────────────────────────── */
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+  .toggle-row label{color:#aaa;font-size:11px}
+  .toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+  .toggle input{opacity:0;width:0;height:0}
+  .toggle .slider{position:absolute;inset:0;background:#333;border-radius:10px;cursor:pointer;transition:.2s}
+  .toggle .slider::before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;
+    background:#888;border-radius:50%;transition:.2s}
+  .toggle input:checked+.slider{background:#1a6622}
+  .toggle input:checked+.slider::before{transform:translateX(16px);background:#4f4}
+  .info-toggle{color:#4af;font-size:10px;cursor:pointer;text-align:center;padding:4px 0;
+    border-top:1px solid #222;margin-top:4px;user-select:none}
+  .info-toggle:hover{color:#8cf}
+  #controlsInfo{display:none;font-size:10px;line-height:1.6;color:#aaa}
+  #controlsInfo.open{display:block}
+  #controlsInfo table{width:100%;border-collapse:collapse;margin-top:4px}
+  #controlsInfo th{text-align:left;color:#888;font-size:9px;text-transform:uppercase;padding:2px 0;
+    border-bottom:1px solid #222}
+  #controlsInfo td{padding:2px 0}
+  #controlsInfo td:first-child{color:#0df;font-weight:bold;width:40%}
+  #controlsInfo .cat{color:#fa0;font-size:9px;text-transform:uppercase;padding-top:6px}
 </style>
 </head>
 <body>
@@ -858,10 +879,41 @@ TWIN_HTML = r"""<!DOCTYPE html>
     <div id="ctrlLog"></div>
   </div>
   <div class="section">
+    <h4>Settings</h4>
+    <div class="toggle-row">
+      <label>Invert WASD</label>
+      <label class="toggle"><input type="checkbox" id="invertWasd"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <label>Invert Arrows</label>
+      <label class="toggle"><input type="checkbox" id="invertArrows"><span class="slider"></span></label>
+    </div>
     <div class="keys-hint">
       <b>WASD</b>=XY &nbsp;<b>Q/E</b>=Z &nbsp;<b>+/-</b>=Step<br>
-      <b>Space</b>=Toggle mode &nbsp;<b>H</b>=Home<br>
-      Any key jog → switch to MANUAL
+      <b>Space</b>=Toggle &nbsp;<b>H</b>=Home<br>
+      Any jog key → MANUAL
+    </div>
+    <div class="info-toggle" id="infoToggle" onclick="toggleInfo()">&#9660; Controls Info</div>
+    <div id="controlsInfo">
+      <table>
+        <tr><td colspan="2" class="cat">Movement</td></tr>
+        <tr><td>W / ▲</td><td>Jog Y−</td></tr>
+        <tr><td>S / ▼</td><td>Jog Y+</td></tr>
+        <tr><td>A / ◀</td><td>Jog X−</td></tr>
+        <tr><td>D / ▶</td><td>Jog X+</td></tr>
+        <tr><td>Q</td><td>Jog Z up</td></tr>
+        <tr><td>E</td><td>Jog Z down</td></tr>
+        <tr><td colspan="2" class="cat">Mode</td></tr>
+        <tr><td>Space</td><td>Toggle Auto / Manual</td></tr>
+        <tr><td>H</td><td>Home all axes</td></tr>
+        <tr><td colspan="2" class="cat">Step size</td></tr>
+        <tr><td>+ / =</td><td>Increase step</td></tr>
+        <tr><td>−</td><td>Decrease step</td></tr>
+        <tr><td colspan="2" class="cat">Other</td></tr>
+        <tr><td>Enter</td><td>Send G-code (in input)</td></tr>
+        <tr><td>Click bed</td><td>Orbit / rotate view</td></tr>
+        <tr><td>Scroll</td><td>Zoom in / out</td></tr>
+      </table>
     </div>
   </div>
 </div>
@@ -1256,6 +1308,13 @@ async function sendGcode(){
 }
 window.sendGcode=sendGcode;
 
+function toggleInfo(){
+  const el=$('controlsInfo'), btn=$('infoToggle');
+  el.classList.toggle('open');
+  btn.innerHTML=el.classList.contains('open')?'&#9650; Controls Info':'&#9660; Controls Info';
+}
+window.toggleInfo=toggleInfo;
+
 // Step size presets
 const STEPS=[0.1, 0.5, 1, 5, 10, 50];
 function stepChange(delta){
@@ -1271,21 +1330,23 @@ document.addEventListener('keydown',(e)=>{
   // Skip if typing in input
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
 
+  const inv=$('invertWasd')&&$('invertWasd').checked?-1:1;
+  const iva=$('invertArrows')&&$('invertArrows').checked?-1:1;
   switch(e.key.toLowerCase()){
-    case 'w': jog(0,-1,0); e.preventDefault(); break;
-    case 's': jog(0,1,0); e.preventDefault(); break;
-    case 'a': jog(-1,0,0); e.preventDefault(); break;
-    case 'd': jog(1,0,0); e.preventDefault(); break;
+    case 'w': jog(0,-1*inv,0); e.preventDefault(); break;
+    case 's': jog(0,1*inv,0); e.preventDefault(); break;
+    case 'a': jog(-1*inv,0,0); e.preventDefault(); break;
+    case 'd': jog(1*inv,0,0); e.preventDefault(); break;
     case 'q': jog(0,0,1); e.preventDefault(); break;
     case 'e': jog(0,0,-1); e.preventDefault(); break;
     case 'h': sendHome(); e.preventDefault(); break;
     case ' ': toggleMode(); e.preventDefault(); break;
     case '+': case '=': stepChange(1); e.preventDefault(); break;
     case '-': stepChange(-1); e.preventDefault(); break;
-    case 'arrowup': jog(0,-1,0); e.preventDefault(); break;
-    case 'arrowdown': jog(0,1,0); e.preventDefault(); break;
-    case 'arrowleft': jog(-1,0,0); e.preventDefault(); break;
-    case 'arrowright': jog(1,0,0); e.preventDefault(); break;
+    case 'arrowup': jog(0,-1*iva,0); e.preventDefault(); break;
+    case 'arrowdown': jog(0,1*iva,0); e.preventDefault(); break;
+    case 'arrowleft': jog(-1*iva,0,0); e.preventDefault(); break;
+    case 'arrowright': jog(1*iva,0,0); e.preventDefault(); break;
   }
 });
 
