@@ -450,7 +450,7 @@ async def _position_poll_loop(
     loop = asyncio.get_event_loop()
 
     while True:
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.2)
 
         snap = state.get()
         if not snap.connected:

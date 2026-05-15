@@ -230,6 +230,14 @@ def main() -> None:
             run_jog_loop(state, worker, safety, config)
         except KeyboardInterrupt:
             pass
+    else:
+        # API-only mode: block until Ctrl+C
+        print(f"API server running at http://{config.server.host}:{config.server.port}")
+        print("Press Ctrl+C to stop.")
+        try:
+            server_thread.join()
+        except KeyboardInterrupt:
+            pass
 
     # Shutdown
     logger.info("Shutting down…")
