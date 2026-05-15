@@ -86,21 +86,22 @@ PRINTER_URL = "http://127.0.0.1:8765"
 CAMERA_URL = "http://127.0.0.1:8766"
 
 # Red detection HSV ranges (wraps around 0/180 in OpenCV HSV)
-# Range 1: low red (0-10)
-RED_LOW1 = np.array([0, 50, 50])
-RED_HIGH1 = np.array([10, 255, 255])
-# Range 2: high red (165-180)
-RED_LOW2 = np.array([165, 50, 50])
+# Widened for resilience to warm/cool/dim lighting conditions.
+# Range 1: low red (0-15) — covers orange-reds
+RED_LOW1 = np.array([0, 35, 35])
+RED_HIGH1 = np.array([15, 255, 255])
+# Range 2: high red (155-180) — covers pink-reds / magenta-reds
+RED_LOW2 = np.array([155, 35, 35])
 RED_HIGH2 = np.array([180, 255, 255])
 
 # Blue detection HSV range (extruder marker)
-BLUE_LOW = np.array([95, 80, 50])
-BLUE_HIGH = np.array([130, 255, 255])
+BLUE_LOW = np.array([95, 60, 40])
+BLUE_HIGH = np.array([135, 255, 255])
 
 # Minimum contour area (pixels).
 # Initial acquisition requires a large blob; once locked, allow smaller (partial occlusion).
-MIN_CONTOUR_AREA = 300           # floor for any detection
-MIN_CONTOUR_AREA_ACQUIRE = 1500  # floor to acquire a NEW target (no lock)
+MIN_CONTOUR_AREA = 200           # floor for any detection
+MIN_CONTOUR_AREA_ACQUIRE = 800   # floor to acquire a NEW target (no lock)
 
 # When red centroid is within this many pixels of blue (extruder) marker, we've arrived
 ARRIVAL_THRESHOLD_PX = 40
@@ -1781,8 +1782,16 @@ def detect_red(frame: np.ndarray,
     """
     h, w = frame.shape[:2]
 
+    # Light-noise reduction: small blur to suppress speckles
+    blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+
     # Convert to HSV
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+
+    # CLAHE on V channel — normalises brightness across varying lighting
+    v_chan = hsv[:, :, 2]
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    hsv[:, :, 2] = clahe.apply(v_chan)
 
     # Red wraps around HSV hue, so combine two ranges
     mask1 = cv2.inRange(hsv, RED_LOW1, RED_HIGH1)
@@ -1857,7 +1866,11 @@ def detect_red(frame: np.ndarray,
 
 def detect_blue(frame: np.ndarray) -> BlueDetection:
     """Detect the blue extruder marker in a BGR frame. Returns largest blue contour."""
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+    hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+    v_chan = hsv[:, :, 2]
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    hsv[:, :, 2] = clahe.apply(v_chan)
     mask = cv2.inRange(hsv, BLUE_LOW, BLUE_HIGH)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
