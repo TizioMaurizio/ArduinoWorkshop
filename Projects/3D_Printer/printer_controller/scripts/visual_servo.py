@@ -2361,9 +2361,12 @@ def run_visual_servo(
                 printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
                 tracking.printer_x, tracking.printer_y, tracking.printer_z = nx, ny, nz
 
-        # If stopped, halt motion, keep streaming but don't auto-move
+        # If stopped, keep streaming but don't auto-move.
+        # NOTE: M410 is sent ONCE by the /api/stop handler when entering
+        # manual mode.  Do NOT call sender.halt() here — it sends M410
+        # every iteration (~30 Hz) which floods the serial queue and
+        # blocks manual jog commands.
         if tracking.stopped:
-            sender.halt()
             frame = fetch_frame(camera_url)
             if frame is not None:
                 det = detect_red(frame, last_cx, last_cy)
