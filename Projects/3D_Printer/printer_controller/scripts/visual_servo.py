@@ -858,23 +858,41 @@ TWIN_HTML = r"""<!DOCTYPE html>
   /* ── Responsive: only apply on narrow screens with coarse pointer (actual phones/tablets) ── */
   @media (max-width:1024px) and (pointer:coarse){
     #ctrlPanel{display:none}
-    #legend{bottom:auto;top:50px;left:10px}
-    #camFeed{bottom:auto;top:50px;left:auto;right:10px;width:140px}
-    #camFeed:hover{width:140px}
+    #legend{display:none}
+    #camFeed{bottom:auto;top:52px;left:auto;right:8px;width:130px;border-width:1px;opacity:0.9}
+    #camFeed:hover{width:130px}
     .vj-zone{display:block}
     #mobileBar{display:flex}
-    #hud{top:50px}
+    #hud{top:48px;left:8px;max-width:calc(100vw - 160px)}
     #hud .title{display:none}
+    #hud #modePill{display:none}
+    #hud div{font-size:10px;padding:2px 8px;margin-bottom:2px}
+    #hud .pos{font-size:11px}
+    .vj-zone{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+    .vj-base{width:130px;height:130px}
+    .vj-knob{width:54px;height:54px}
+    #vjZ .vj-base{width:64px;height:130px;border-radius:32px}
+    #vjZ .vj-knob{width:48px;height:48px}
+    #mobileBar{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-left:env(safe-area-inset-left,10px);padding-right:env(safe-area-inset-right,10px)}
   }
   /* Also apply via JS class for manual override */
   .force-mobile #ctrlPanel{display:none}
-  .force-mobile #legend{bottom:auto;top:50px;left:10px}
-  .force-mobile #camFeed{bottom:auto;top:50px;left:auto;right:10px;width:140px}
-  .force-mobile #camFeed:hover{width:140px}
+  .force-mobile #legend{display:none}
+  .force-mobile #camFeed{bottom:auto;top:52px;left:auto;right:8px;width:130px;border-width:1px;opacity:0.9}
+  .force-mobile #camFeed:hover{width:130px}
   .force-mobile .vj-zone{display:block}
   .force-mobile #mobileBar{display:flex}
-  .force-mobile #hud{top:50px}
+  .force-mobile #hud{top:48px;left:8px;max-width:calc(100vw - 160px)}
   .force-mobile #hud .title{display:none}
+  .force-mobile #hud #modePill{display:none}
+  .force-mobile #hud div{font-size:10px;padding:2px 8px;margin-bottom:2px}
+  .force-mobile #hud .pos{font-size:11px}
+  .force-mobile .vj-zone{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  .force-mobile .vj-base{width:130px;height:130px}
+  .force-mobile .vj-knob{width:54px;height:54px}
+  .force-mobile #vjZ .vj-base{width:64px;height:130px;border-radius:32px}
+  .force-mobile #vjZ .vj-knob{width:48px;height:48px}
+  .force-mobile #mobileBar{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-left:env(safe-area-inset-left,10px);padding-right:env(safe-area-inset-right,10px)}
 </style>
 </head>
 <body>
