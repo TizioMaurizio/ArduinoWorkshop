@@ -746,27 +746,124 @@ TWIN_HTML = r"""<!DOCTYPE html>
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#0a0a0a;overflow:hidden;font-family:'Consolas','SF Mono',monospace;color:#eee}
   canvas{display:block}
-  #hud{position:absolute;top:10px;left:10px;pointer-events:none}
+  #hud{position:absolute;top:10px;left:10px;pointer-events:none;z-index:10}
   #hud div{background:rgba(0,0,0,0.7);padding:4px 10px;margin-bottom:3px;
            border-radius:4px;font-size:12px;display:inline-block}
   #hud .title{font-size:14px;font-weight:bold;color:#0f0}
   #hud .pos{color:#0df}
   #hud .status{color:#fa0}
+  #modePill{padding:4px 14px;border-radius:12px;font-weight:bold;font-size:13px;
+            cursor:pointer;pointer-events:auto;transition:all 0.2s;user-select:none}
+  #modePill.auto{background:#1a6622;color:#4f4;border:1px solid #4f4}
+  #modePill.manual{background:#663300;color:#fa0;border:1px solid #fa0;animation:pulse-manual 1s infinite}
+  @keyframes pulse-manual{0%,100%{opacity:1}50%{opacity:0.7}}
   #camFeed{position:absolute;bottom:10px;right:10px;width:280px;border:2px solid #333;
-           border-radius:6px;opacity:0.85;transition:width 0.3s}
+           border-radius:6px;opacity:0.85;transition:width 0.3s;z-index:5}
   #camFeed:hover{opacity:1;width:400px}
   #legend{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,0.7);
-          padding:8px 12px;border-radius:6px;font-size:11px;pointer-events:none}
+          padding:8px 12px;border-radius:6px;font-size:11px;pointer-events:none;z-index:10}
   #legend span{margin-right:12px}
   .cBlue{color:#4488ff} .cRed{color:#ff4444} .cGreen{color:#44ff44} .cYellow{color:#ffff00}
+  /* ── Control panel ──────────────────────────────── */
+  #ctrlPanel{position:absolute;top:10px;right:10px;width:200px;z-index:20;
+             font-size:12px;user-select:none}
+  #ctrlPanel .section{background:rgba(0,0,0,0.8);border:1px solid #333;
+                      border-radius:6px;padding:8px 10px;margin-bottom:6px}
+  #ctrlPanel h4{color:#888;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .jog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:6px}
+  .jog-grid button,.ctrl-btn{background:#1a1a2e;border:1px solid #444;color:#ccc;
+    padding:6px 0;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;transition:all 0.1s}
+  .jog-grid button:hover,.ctrl-btn:hover{background:#2a2a4e;border-color:#888;color:#fff}
+  .jog-grid button:active,.ctrl-btn:active{background:#3a3a6e;transform:scale(0.95)}
+  .jog-grid button.empty{visibility:hidden}
+  .z-row{display:flex;gap:3px;margin-bottom:6px}
+  .z-row button{flex:1}
+  .step-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+  .step-row label{color:#888;font-size:10px;white-space:nowrap}
+  .step-row input{width:55px;background:#111;border:1px solid #444;color:#0df;
+    padding:3px 5px;border-radius:3px;font-family:inherit;font-size:12px;text-align:center}
+  .step-btns{display:flex;gap:3px}
+  .step-btns button{padding:3px 8px;font-size:11px}
+  .action-row{display:flex;gap:4px}
+  .action-row button{flex:1}
+  .btn-home{color:#4af!important;border-color:#4af!important}
+  .btn-auto{color:#4f4!important;border-color:#4f4!important}
+  .btn-estop{background:#600!important;color:#f44!important;border-color:#f44!important;font-weight:bold}
+  .gcode-row{display:flex;gap:3px}
+  .gcode-row input{flex:1;background:#111;border:1px solid #444;color:#eee;
+    padding:4px 6px;border-radius:3px;font-family:inherit;font-size:11px}
+  .gcode-row button{padding:4px 8px}
+  #ctrlLog{max-height:60px;overflow-y:auto;font-size:10px;color:#666;margin-top:4px}
+  #ctrlLog div{padding:1px 0}
+  #ctrlLog .ok{color:#4a4} #ctrlLog .err{color:#f44}
+  .keys-hint{color:#555;font-size:9px;text-align:center;margin-top:4px;line-height:1.4}
 </style>
 </head>
 <body>
 <div id="hud">
   <div class="title">DIGITAL TWIN - Geeetech A10</div>
+  <div id="modePill" class="auto" onclick="toggleMode()" title="Click or press Space to toggle">AUTO</div>
   <div class="pos" id="posHud">X-- Y-- Z--</div>
   <div class="status" id="statusHud">Connecting...</div>
   <div id="distHud" style="color:#ff0">--</div>
+</div>
+<div id="ctrlPanel">
+  <div class="section">
+    <h4>Jog Controls</h4>
+    <div class="jog-grid">
+      <button class="empty"></button>
+      <button onclick="jog(0,-1,0)" title="Y-">&#9650; Y-</button>
+      <button class="empty"></button>
+      <button onclick="jog(-1,0,0)" title="X-">&#9664; X-</button>
+      <button onclick="jog(0,0,0)" style="font-size:8px;color:#666">&#8226;</button>
+      <button onclick="jog(1,0,0)" title="X+">X+ &#9654;</button>
+      <button class="empty"></button>
+      <button onclick="jog(0,1,0)" title="Y+">Y+ &#9660;</button>
+      <button class="empty"></button>
+    </div>
+    <div class="z-row">
+      <button class="ctrl-btn" onclick="jog(0,0,1)" title="Z up">Z &#9650;</button>
+      <button class="ctrl-btn" onclick="jog(0,0,-1)" title="Z down">Z &#9660;</button>
+    </div>
+    <div class="step-row">
+      <label>Step:</label>
+      <input type="number" id="stepSize" value="5" min="0.1" max="50" step="0.5">
+      <span style="color:#888;font-size:10px">mm</span>
+    </div>
+    <div class="step-btns">
+      <button class="ctrl-btn" onclick="setStep(0.1)">0.1</button>
+      <button class="ctrl-btn" onclick="setStep(1)">1</button>
+      <button class="ctrl-btn" onclick="setStep(5)">5</button>
+      <button class="ctrl-btn" onclick="setStep(10)">10</button>
+      <button class="ctrl-btn" onclick="setStep(50)">50</button>
+    </div>
+  </div>
+  <div class="section">
+    <h4>Actions</h4>
+    <div class="action-row" style="margin-bottom:4px">
+      <button class="ctrl-btn btn-auto" id="btnMode" onclick="toggleMode()">&#9654; AUTO</button>
+      <button class="ctrl-btn btn-home" onclick="sendHome()">&#8962; HOME</button>
+    </div>
+    <div class="action-row">
+      <button class="ctrl-btn btn-estop" onclick="emergencyStop()">&#9724; E-STOP</button>
+    </div>
+  </div>
+  <div class="section">
+    <h4>G-code</h4>
+    <div class="gcode-row">
+      <input type="text" id="gcodeInput" placeholder="G1 X100 F3000"
+             onkeydown="if(event.key==='Enter'){sendGcode();event.stopPropagation()}">
+      <button class="ctrl-btn" onclick="sendGcode()">&#9654;</button>
+    </div>
+    <div id="ctrlLog"></div>
+  </div>
+  <div class="section">
+    <div class="keys-hint">
+      <b>WASD</b>=XY &nbsp;<b>Q/E</b>=Z &nbsp;<b>+/-</b>=Step<br>
+      <b>Space</b>=Toggle mode &nbsp;<b>H</b>=Home<br>
+      Any key jog → switch to MANUAL
+    </div>
+  </div>
 </div>
 <img id="camFeed" src="/stream" title="Live annotated feed">
 <div id="legend">
@@ -1063,7 +1160,134 @@ function updateScene(){
     '['+pState.phase+'] '+(pState.status||'');
   document.getElementById('distHud').textContent =
     pState.distance!=null ? 'Distance: '+pState.distance.toFixed(0)+'px | iter='+pState.iteration : '';
+
+  // ── Mode pill ──────────────────────────────────────────────────────
+  const mp=document.getElementById('modePill');
+  if(pState.stopped){
+    mp.className='manual'; mp.textContent='MANUAL';
+    document.getElementById('btnMode').textContent='\u25B6 AUTO';
+  } else {
+    mp.className='auto'; mp.textContent='AUTO';
+    document.getElementById('btnMode').textContent='\u23F8 MANUAL';
+  }
 }
+
+// ── Control helpers ─────────────────────────────────────────────────────
+const $=id=>document.getElementById(id);
+
+function ctrlLog(msg, cls){
+  const d=document.createElement('div');
+  d.textContent=msg; if(cls)d.className=cls;
+  $('ctrlLog').prepend(d);
+  while($('ctrlLog').children.length>20)$('ctrlLog').lastChild.remove();
+}
+
+async function api(path, data){
+  try{
+    const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},
+                              body:JSON.stringify(data||{})});
+    return await r.json();
+  }catch(e){ctrlLog('ERR: '+e.message,'err');return null;}
+}
+
+// Switch to manual mode: pause auto-tracking
+async function switchToManual(){
+  if(!pState.stopped){
+    const r=await api('/api/stop');
+    if(r) pState.stopped=r.stopped;
+  }
+}
+
+// Switch to auto mode: resume auto-tracking
+async function switchToAuto(){
+  if(pState.stopped){
+    const r=await api('/api/stop');
+    if(r) pState.stopped=r.stopped;
+    ctrlLog('Resumed auto-tracking','ok');
+  }
+}
+
+// Toggle between modes
+async function toggleMode(){
+  if(pState.stopped) await switchToAuto();
+  else await switchToManual();
+}
+// Expose to onclick
+window.toggleMode=toggleMode;
+
+// Jog: any jog immediately switches to manual mode
+async function jog(dx,dy,dz){
+  await switchToManual();
+  const step=parseFloat($('stepSize').value)||5;
+  const r=await api('/api/jog',{x:dx*step, y:dy*step, z:dz*step});
+  if(r&&r.status==='queued'){
+    ctrlLog('Jog X'+(dx*step>0?'+':'')+(dx*step)+' Y'+(dy*step>0?'+':'')+(dy*step)+
+            ' Z'+(dz*step>0?'+':'')+(dz*step),'ok');
+  }
+}
+window.jog=jog;
+
+function setStep(v){$('stepSize').value=v;}
+window.setStep=setStep;
+
+async function sendHome(){
+  await switchToManual();
+  ctrlLog('Homing...','ok');
+  const r=await api('/api/home');
+  if(r) ctrlLog('Home: '+(r.status||r.error||''), r.error?'err':'ok');
+}
+window.sendHome=sendHome;
+
+async function emergencyStop(){
+  await switchToManual();
+  await api('/api/gcode',{command:'M410'});
+  await api('/api/gcode',{command:'M112'});
+  ctrlLog('EMERGENCY STOP','err');
+}
+window.emergencyStop=emergencyStop;
+
+async function sendGcode(){
+  const cmd=$('gcodeInput').value.trim();
+  if(!cmd)return;
+  await switchToManual();
+  const r=await api('/api/gcode',{command:cmd});
+  if(r) ctrlLog('> '+cmd+' -> '+(r.status||r.error||''), r.error?'err':'ok');
+  $('gcodeInput').value='';
+}
+window.sendGcode=sendGcode;
+
+// Step size presets
+const STEPS=[0.1, 0.5, 1, 5, 10, 50];
+function stepChange(delta){
+  const cur=parseFloat($('stepSize').value)||5;
+  let idx=STEPS.findIndex(s=>s>=cur);
+  if(idx<0)idx=STEPS.length-1;
+  idx=Math.max(0,Math.min(STEPS.length-1, idx+delta));
+  $('stepSize').value=STEPS[idx];
+}
+
+// ── Keyboard ────────────────────────────────────────────────────────────
+document.addEventListener('keydown',(e)=>{
+  // Skip if typing in input
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+
+  switch(e.key.toLowerCase()){
+    case 'w': jog(0,-1,0); e.preventDefault(); break;
+    case 's': jog(0,1,0); e.preventDefault(); break;
+    case 'a': jog(-1,0,0); e.preventDefault(); break;
+    case 'd': jog(1,0,0); e.preventDefault(); break;
+    case 'q': jog(0,0,1); e.preventDefault(); break;
+    case 'e': jog(0,0,-1); e.preventDefault(); break;
+    case 'h': sendHome(); e.preventDefault(); break;
+    case ' ': toggleMode(); e.preventDefault(); break;
+    case '+': case '=': stepChange(1); e.preventDefault(); break;
+    case '-': stepChange(-1); e.preventDefault(); break;
+    case 'arrowup': jog(0,-1,0); e.preventDefault(); break;
+    case 'arrowdown': jog(0,1,0); e.preventDefault(); break;
+    case 'arrowleft': jog(-1,0,0); e.preventDefault(); break;
+    case 'arrowright': jog(1,0,0); e.preventDefault(); break;
+  }
+});
 
 // ── SSE ─────────────────────────────────────────────────────────────────
 const evtSource=new EventSource('/api/events');
