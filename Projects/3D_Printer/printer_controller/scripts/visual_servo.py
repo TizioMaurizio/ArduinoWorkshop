@@ -885,12 +885,12 @@ TWIN_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <h4>Settings</h4>
     <div class="toggle-row">
-      <label>Invert WASD</label>
-      <label class="toggle"><input type="checkbox" id="invertWasd"><span class="slider"></span></label>
+      <label>Invert X</label>
+      <label class="toggle"><input type="checkbox" id="invertX"><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
-      <label>Invert Arrows</label>
-      <label class="toggle"><input type="checkbox" id="invertArrows"><span class="slider"></span></label>
+      <label>Invert Y</label>
+      <label class="toggle"><input type="checkbox" id="invertY"><span class="slider"></span></label>
     </div>
     <div class="keys-hint">
       <b>WASD</b>=XY &nbsp;<b>Q/E</b>=Z &nbsp;<b>+/-</b>=Step<br>
@@ -1334,23 +1334,23 @@ document.addEventListener('keydown',(e)=>{
   // Skip if typing in input
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
 
-  const inv=$('invertWasd')&&$('invertWasd').checked?-1:1;
-  const iva=$('invertArrows')&&$('invertArrows').checked?-1:1;
+  const ix=$('invertX')&&$('invertX').checked?-1:1;
+  const iy=$('invertY')&&$('invertY').checked?-1:1;
   switch(e.key.toLowerCase()){
-    case 'w': jog(0,-1*inv,0); e.preventDefault(); break;
-    case 's': jog(0,1*inv,0); e.preventDefault(); break;
-    case 'a': jog(-1*inv,0,0); e.preventDefault(); break;
-    case 'd': jog(1*inv,0,0); e.preventDefault(); break;
+    case 'w': jog(0,-1*iy,0); e.preventDefault(); break;
+    case 's': jog(0,1*iy,0); e.preventDefault(); break;
+    case 'a': jog(-1*ix,0,0); e.preventDefault(); break;
+    case 'd': jog(1*ix,0,0); e.preventDefault(); break;
     case 'q': jog(0,0,1); e.preventDefault(); break;
     case 'e': jog(0,0,-1); e.preventDefault(); break;
     case 'h': sendHome(); e.preventDefault(); break;
     case ' ': toggleMode(); e.preventDefault(); break;
     case '+': case '=': stepChange(1); e.preventDefault(); break;
     case '-': stepChange(-1); e.preventDefault(); break;
-    case 'arrowup': jog(0,-1*iva,0); e.preventDefault(); break;
-    case 'arrowdown': jog(0,1*iva,0); e.preventDefault(); break;
-    case 'arrowleft': jog(-1*iva,0,0); e.preventDefault(); break;
-    case 'arrowright': jog(1*iva,0,0); e.preventDefault(); break;
+    case 'arrowup': jog(0,-1*iy,0); e.preventDefault(); break;
+    case 'arrowdown': jog(0,1*iy,0); e.preventDefault(); break;
+    case 'arrowleft': jog(-1*ix,0,0); e.preventDefault(); break;
+    case 'arrowright': jog(1*ix,0,0); e.preventDefault(); break;
   }
 });
 
