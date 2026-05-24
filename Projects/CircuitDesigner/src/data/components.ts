@@ -390,6 +390,44 @@ export const componentLibrary: ComponentDefinition[] = [
       { id: 'rx', label: 'RXD', type: 'uart', direction: 'input', position: 'left', index: 3 },
     ],
   },
+
+  // Breakout Boards / Drivers
+  {
+    type: 'pca9685',
+    label: 'PCA9685 Servo Driver',
+    category: 'actuator',
+    description: '16-channel 12-bit I2C PWM/Servo driver (Adafruit)',
+    color: '#7e57c2',
+    width: 260,
+    height: 220,
+    pins: [
+      // I2C + Power (left side)
+      { id: 'vcc', label: 'VCC', type: 'power', direction: 'input', voltage: 5, position: 'left', index: 0 },
+      { id: 'gnd', label: 'GND', type: 'ground', direction: 'bidirectional', position: 'left', index: 1 },
+      { id: 'scl', label: 'SCL', type: 'i2c', direction: 'bidirectional', position: 'left', index: 2 },
+      { id: 'sda', label: 'SDA', type: 'i2c', direction: 'bidirectional', position: 'left', index: 3 },
+      { id: 'oe', label: 'OE', type: 'digital', direction: 'input', position: 'left', index: 4 },
+      { id: 'v+', label: 'V+ (Servo)', type: 'power', direction: 'input', voltage: 6, position: 'left', index: 5 },
+      // PWM channels 0-7 (right side)
+      { id: 'ch0', label: 'CH0', type: 'pwm', direction: 'output', position: 'right', index: 0 },
+      { id: 'ch1', label: 'CH1', type: 'pwm', direction: 'output', position: 'right', index: 1 },
+      { id: 'ch2', label: 'CH2', type: 'pwm', direction: 'output', position: 'right', index: 2 },
+      { id: 'ch3', label: 'CH3', type: 'pwm', direction: 'output', position: 'right', index: 3 },
+      { id: 'ch4', label: 'CH4', type: 'pwm', direction: 'output', position: 'right', index: 4 },
+      { id: 'ch5', label: 'CH5', type: 'pwm', direction: 'output', position: 'right', index: 5 },
+      { id: 'ch6', label: 'CH6', type: 'pwm', direction: 'output', position: 'right', index: 6 },
+      { id: 'ch7', label: 'CH7', type: 'pwm', direction: 'output', position: 'right', index: 7 },
+      // PWM channels 8-15 (bottom side)
+      { id: 'ch8', label: 'CH8', type: 'pwm', direction: 'output', position: 'bottom', index: 0 },
+      { id: 'ch9', label: 'CH9', type: 'pwm', direction: 'output', position: 'bottom', index: 1 },
+      { id: 'ch10', label: 'CH10', type: 'pwm', direction: 'output', position: 'bottom', index: 2 },
+      { id: 'ch11', label: 'CH11', type: 'pwm', direction: 'output', position: 'bottom', index: 3 },
+      { id: 'ch12', label: 'CH12', type: 'pwm', direction: 'output', position: 'bottom', index: 4 },
+      { id: 'ch13', label: 'CH13', type: 'pwm', direction: 'output', position: 'bottom', index: 5 },
+      { id: 'ch14', label: 'CH14', type: 'pwm', direction: 'output', position: 'bottom', index: 6 },
+      { id: 'ch15', label: 'CH15', type: 'pwm', direction: 'output', position: 'bottom', index: 7 },
+    ],
+  },
 ];
 
 export function getComponentByType(type: string): ComponentDefinition | undefined {
