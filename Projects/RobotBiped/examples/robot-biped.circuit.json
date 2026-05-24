@@ -1,0 +1,299 @@
+{
+  "name": "Robot Biped — Arduino Uno + PCA9685 + 10 Servos",
+  "nodes": [
+    {
+      "id": "arduino-1",
+      "type": "circuitComponent",
+      "position": { "x": 50, "y": 250 },
+      "data": {
+        "label": "Arduino Uno",
+        "componentType": "arduino-uno",
+        "properties": {}
+      }
+    },
+    {
+      "id": "pca9685-1",
+      "type": "circuitComponent",
+      "position": { "x": 400, "y": 230 },
+      "data": {
+        "label": "PCA9685 Servo Driver",
+        "componentType": "pca9685",
+        "properties": {}
+      }
+    },
+    {
+      "id": "psu-1",
+      "type": "circuitComponent",
+      "position": { "x": 50, "y": 500 },
+      "data": {
+        "label": "5V Servo PSU",
+        "componentType": "breadboard-power",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-L-ankle-x",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 30 },
+      "data": {
+        "label": "L Ankle X (ch0)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-L-ankle-y",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 120 },
+      "data": {
+        "label": "L Ankle Y (ch1)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-L-knee",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 210 },
+      "data": {
+        "label": "L Knee (ch2)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-L-hip-y",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 300 },
+      "data": {
+        "label": "L Hip Y (ch3)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-L-hip-z",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 390 },
+      "data": {
+        "label": "L Hip Z (ch4)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-R-hip-z",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 510 },
+      "data": {
+        "label": "R Hip Z (ch11)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-R-hip-y",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 600 },
+      "data": {
+        "label": "R Hip Y (ch12)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-R-knee",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 690 },
+      "data": {
+        "label": "R Knee (ch13)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-R-ankle-y",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 780 },
+      "data": {
+        "label": "R Ankle Y (ch14)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    },
+    {
+      "id": "servo-R-ankle-x",
+      "type": "circuitComponent",
+      "position": { "x": 750, "y": 870 },
+      "data": {
+        "label": "R Ankle X (ch15)",
+        "componentType": "servo-sg90",
+        "properties": {}
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "wire-i2c-sda",
+      "source": "arduino-1",
+      "target": "pca9685-1",
+      "sourceHandle": "a4",
+      "targetHandle": "sda",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#42a5f5", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-i2c-scl",
+      "source": "arduino-1",
+      "target": "pca9685-1",
+      "sourceHandle": "a5",
+      "targetHandle": "scl",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#66bb6a", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-5v-logic",
+      "source": "arduino-1",
+      "target": "pca9685-1",
+      "sourceHandle": "5v",
+      "targetHandle": "vcc",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#ef5350", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-gnd-common",
+      "source": "arduino-1",
+      "target": "pca9685-1",
+      "sourceHandle": "gnd1",
+      "targetHandle": "gnd",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#444444", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-psu-servo-power",
+      "source": "psu-1",
+      "target": "pca9685-1",
+      "sourceHandle": "5v",
+      "targetHandle": "v+",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#ff1744", "strokeWidth": 3 }
+    },
+    {
+      "id": "wire-psu-gnd",
+      "source": "psu-1",
+      "target": "pca9685-1",
+      "sourceHandle": "gnd",
+      "targetHandle": "gnd",
+      "type": "smoothstep",
+      "animated": true,
+      "style": { "stroke": "#444444", "strokeWidth": 3 }
+    },
+    {
+      "id": "wire-ch0-L-ankle-x",
+      "source": "pca9685-1",
+      "target": "servo-L-ankle-x",
+      "sourceHandle": "ch0",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#ff7043", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch1-L-ankle-y",
+      "source": "pca9685-1",
+      "target": "servo-L-ankle-y",
+      "sourceHandle": "ch1",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#ff7043", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch2-L-knee",
+      "source": "pca9685-1",
+      "target": "servo-L-knee",
+      "sourceHandle": "ch2",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#ff7043", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch3-L-hip-y",
+      "source": "pca9685-1",
+      "target": "servo-L-hip-y",
+      "sourceHandle": "ch3",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#ff7043", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch4-L-hip-z",
+      "source": "pca9685-1",
+      "target": "servo-L-hip-z",
+      "sourceHandle": "ch4",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#ff7043", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch11-R-hip-z",
+      "source": "pca9685-1",
+      "target": "servo-R-hip-z",
+      "sourceHandle": "ch11",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#29b6f6", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch12-R-hip-y",
+      "source": "pca9685-1",
+      "target": "servo-R-hip-y",
+      "sourceHandle": "ch12",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#29b6f6", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch13-R-knee",
+      "source": "pca9685-1",
+      "target": "servo-R-knee",
+      "sourceHandle": "ch13",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#29b6f6", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch14-R-ankle-y",
+      "source": "pca9685-1",
+      "target": "servo-R-ankle-y",
+      "sourceHandle": "ch14",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#29b6f6", "strokeWidth": 2 }
+    },
+    {
+      "id": "wire-ch15-R-ankle-x",
+      "source": "pca9685-1",
+      "target": "servo-R-ankle-x",
+      "sourceHandle": "ch15",
+      "targetHandle": "signal",
+      "type": "smoothstep",
+      "animated": false,
+      "style": { "stroke": "#29b6f6", "strokeWidth": 2 }
+    }
+  ],
+  "code": "/*\n * Robot Biped — 10-DOF Walking Robot\n * Target Board: Arduino Uno\n *\n * Wiring:\n *   Arduino A4 (SDA) → PCA9685 SDA\n *   Arduino A5 (SCL) → PCA9685 SCL\n *   Arduino 5V       → PCA9685 VCC (logic power)\n *   Arduino GND      → PCA9685 GND (common ground)\n *   External 5V PSU  → PCA9685 V+ (servo power, 2A+ recommended)\n *\n * PCA9685 Channel → Joint Mapping:\n *   ch0  → Left Ankle X     ch11 → Right Hip Z\n *   ch1  → Left Ankle Y     ch12 → Right Hip Y\n *   ch2  → Left Knee         ch13 → Right Knee\n *   ch3  → Left Hip Y        ch14 → Right Ankle Y\n *   ch4  → Left Hip Z        ch15 → Right Ankle X\n *   ch5–ch10 → Unused\n *\n * Serial Protocol: s[16×3-digit angles]\\n at 115200 baud\n * Example: s090102121091080000000000000000000104095072073090\\n\n *\n * Dependencies:\n *   - Adafruit PWM Servo Driver Library\n *   - Wire (built-in)\n */\n\n#include <Wire.h>\n#include <Adafruit_PWMServoDriver.h>\n\n#define SERVOMIN  125\n#define SERVOMAX  575\n#define SERVONUM  16\n#define INTERVAL  30\n\nAdafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();\n\nint servos[16]      = {90, 102, 121, 91, 80, 90, 90, 90, 90, 90, 90, 104, 95, 72, 73, 90};\nint targetPoses[16] = {90, 102, 121, 91, 80, 90, 90, 90, 90, 90, 90, 104, 95, 72, 73, 90};\n\nint angleToPulse(int ang) {\n  return map(ang, 0, 180, SERVOMIN, SERVOMAX);\n}\n\nint sign(int x) {\n  return (x > 0) - (x < 0);\n}\n\nvoid setup() {\n  pwm.begin();\n  pwm.setPWMFreq(60);\n  Serial.begin(115200);\n  Serial.setTimeout(5);\n  for (int i = 0; i < 16; i++) {\n    pwm.setPWM(i, 0, angleToPulse(servos[i]));\n  }\n}\n\nvoid loop() {\n  if (Serial.available()) {\n    if (Serial.read() != 's') return;\n    String msg = Serial.readString();\n    if (msg.length() != SERVONUM * 3 + 1) {\n      Serial.println(\"Invalid\");\n      return;\n    }\n    for (int i = 0; i < SERVONUM; i++) {\n      targetPoses[i] = msg.substring(i*3, i*3+3).toInt();\n    }\n    Serial.print(msg);\n  }\n  static unsigned long prev = 0;\n  if (millis() - prev >= INTERVAL) {\n    prev = millis();\n    for (int i = 0; i < 16; i++) {\n      if (servos[i] != targetPoses[i]) {\n        int d = targetPoses[i] - servos[i];\n        servos[i] += (abs(d) <= 2) ? d : 2 * sign(d);\n        pwm.setPWM(i, 0, angleToPulse(servos[i]));\n      }\n    }\n  }\n}\n",
+  "exportedAt": "2026-05-15T00:00:00.000Z"
+}
