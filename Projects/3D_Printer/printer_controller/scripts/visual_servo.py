@@ -124,6 +124,48 @@ def _save_settings(s: dict) -> None:
 # Load once at startup
 _current_settings: dict = _load_settings()
 
+# ---------------------------------------------------------------------------
+# Movement recording & replay
+# ---------------------------------------------------------------------------
+_RECORDINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".servo_recordings.json")
+_recordings_lock = threading.Lock()
+
+# Active recording state
+_recording_active = False
+_recording_moves: list[dict] = []  # [{x, y, z, t}] absolute positions with relative time
+_recording_start_time: float = 0.0
+_recording_start_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+# Full movement history (always tracking, independent of recording)
+_movement_history: list[dict] = []  # [{x, y, z, t}] all positions
+
+def _load_recordings() -> dict:
+    try:
+        with open(_RECORDINGS_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def _save_recordings(recs: dict) -> None:
+    with open(_RECORDINGS_FILE, "w") as f:
+        json.dump(recs, f, indent=2)
+
+_saved_recordings: dict = _load_recordings()
+
+def record_position(x: float, y: float, z: float) -> None:
+    """Called every time printer position changes — maintains history and recording."""
+    global _movement_history
+    now = time.time()
+    _movement_history.append({"x": x, "y": y, "z": z, "t": now})
+    # Keep history bounded (last 10000 moves)
+    if len(_movement_history) > 10000:
+        _movement_history = _movement_history[-5000:]
+    # If recording, capture relative to start
+    if _recording_active:
+        dt = now - _recording_start_time
+        _recording_moves.append({"x": x, "y": y, "z": z, "t": dt})
+
+
 def get_target_color() -> str:
     with _settings_lock:
         return _current_settings["target_color"]
@@ -156,6 +198,12 @@ STEP_MM = 1.0
 
 # Z height for operation (mm above bed)
 OPERATING_Z_MM = 10.0
+
+# Ghost anchor: keep track of biggest detection within this window (seconds).
+# When the target is lost/shrinks, project the biggest-anchor pixel position
+# forward by the printer motion since it was captured.
+_GHOST_WINDOW_SEC = 2.0
+_PX_PER_MM = 2.0   # matches twin's MM_PER_PX = 0.5
 
 # Target loop rate (Hz) and derived interval
 TARGET_FPS = 30
@@ -249,6 +297,16 @@ class TrackingState:
     # Blue marker pixel coords (for twin red-target estimation)
     blue_px_x: int | None = None
     blue_px_y: int | None = None
+    # Ghost anchor — biggest-area red detection within the last
+    # _GHOST_WINDOW_SEC seconds, projected by printer motion when lost.
+    # Each history entry: (t, cx, cy, area, printer_x, printer_y).
+    red_history: list[tuple[float, int, int, float, float, float]] = field(default_factory=list)
+    ghost_cx: int | None = None
+    ghost_cy: int | None = None
+    ghost_area: float = 0.0
+    ghost_active: bool = False   # True iff drawn because real det missing/shrunk
+    # Signal from API handler to tracking loop: reset all belief
+    color_changed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +408,10 @@ class VisualizationServer:
                 elif self.path == "/api/settings":
                     with _settings_lock:
                         self._json_response(dict(_current_settings))
+                elif self.path == "/api/records":
+                    with _recordings_lock:
+                        names = {k: {"points": len(v["moves"]), "created": v.get("created", 0)} for k, v in _saved_recordings.items()}
+                    self._json_response({"recordings": names, "recording_active": _recording_active})
                 elif self.path == "/health":
                     self._json_response({"status": "ok"})
                 else:
@@ -434,12 +496,106 @@ class VisualizationServer:
                         if ec and ec in valid_colors:
                             _current_settings["extruder_color"] = ec
                         _save_settings(_current_settings)
-                        # Reset tracker when colors change
+                        # Reset ALL accumulated belief when colors change
                         tracker = getattr(viz, "_red_tracker", None)
                         if tracker:
                             tracker.reset()
-                        logger.info(f"Settings updated: {_current_settings}")
+                        tracking = getattr(viz, "_tracking", None)
+                        if tracking:
+                            tracking.red_history.clear()
+                            tracking.ghost_cx = None
+                            tracking.ghost_cy = None
+                            tracking.ghost_area = 0.0
+                            tracking.ghost_active = False
+                            tracking.last_distance_px = float("inf")
+                            tracking.distance_history.clear()
+                            tracking.stall_count = 0
+                            tracking.color_changed = True
+                        logger.info(f"Settings updated (belief reset): {_current_settings}")
                         self._json_response(dict(_current_settings))
+
+                elif self.path == "/api/record/start":
+                    global _recording_active, _recording_moves, _recording_start_time, _recording_start_pos
+                    tracking = getattr(viz, "_tracking", None)
+                    if tracking:
+                        _recording_active = True
+                        _recording_moves = []
+                        _recording_start_time = time.time()
+                        _recording_start_pos = (tracking.printer_x, tracking.printer_y, tracking.printer_z)
+                        # Record starting position as first point
+                        _recording_moves.append({"x": tracking.printer_x, "y": tracking.printer_y, "z": tracking.printer_z, "t": 0.0})
+                        logger.info(f"Recording started at ({tracking.printer_x:.1f}, {tracking.printer_y:.1f}, {tracking.printer_z:.1f})")
+                        self._json_response({"status": "recording", "start": list(_recording_start_pos)})
+                    else:
+                        self._json_response({"error": "no tracking"}, 500)
+
+                elif self.path == "/api/record/stop":
+                    global _saved_recordings
+                    name = data.get("name", "").strip()
+                    if not name:
+                        self._json_response({"error": "name required"}, 400)
+                        return
+                    if not _recording_active:
+                        self._json_response({"error": "not recording"}, 400)
+                        return
+                    _recording_active = False
+                    with _recordings_lock:
+                        _saved_recordings[name] = {
+                            "moves": _recording_moves[:],
+                            "start": list(_recording_start_pos),
+                            "created": time.time(),
+                        }
+                        _save_recordings(_saved_recordings)
+                    logger.info(f"Recording '{name}' saved with {len(_recording_moves)} points")
+                    self._json_response({"status": "saved", "name": name, "points": len(_recording_moves)})
+
+                elif self.path == "/api/record/play":
+                    name = data.get("name", "").strip()
+                    if not name:
+                        self._json_response({"error": "name required"}, 400)
+                        return
+                    with _recordings_lock:
+                        rec = _saved_recordings.get(name)
+                    if not rec:
+                        self._json_response({"error": "recording not found"}, 404)
+                        return
+                    tracking = getattr(viz, "_tracking", None)
+                    if not tracking:
+                        self._json_response({"error": "no tracking"}, 500)
+                        return
+                    # Queue replay as manual commands
+                    # First: pause auto-tracking
+                    tracking.stopped = True
+                    viz._notify_state_change()
+                    # Queue: raise Y first (move to Y=5 for clearance), then go to start, then replay
+                    moves = rec["moves"]
+                    if moves:
+                        start_pos = moves[0]
+                        # Step 1: Raise Z for safety clearance
+                        safe_z = max(tracking.printer_z, start_pos["z"], 15.0)
+                        tracking.manual_queue.append({"type": "replay_abs", "x": tracking.printer_x, "y": 5.0, "z": safe_z})
+                        # Step 2: Move to recording start XZ with Y still at 5
+                        tracking.manual_queue.append({"type": "replay_abs", "x": start_pos["x"], "y": 5.0, "z": start_pos["z"]})
+                        # Step 3: Lower Y to recording start Y
+                        tracking.manual_queue.append({"type": "replay_abs", "x": start_pos["x"], "y": start_pos["y"], "z": start_pos["z"]})
+                        # Step 4: Replay all recorded positions
+                        for m in moves[1:]:
+                            tracking.manual_queue.append({"type": "replay_abs", "x": m["x"], "y": m["y"], "z": m["z"]})
+                    logger.info(f"Replaying '{name}' ({len(moves)} points)")
+                    self._json_response({"status": "replaying", "name": name, "points": len(moves)})
+
+                elif self.path == "/api/record/delete":
+                    name = data.get("name", "").strip()
+                    if not name:
+                        self._json_response({"error": "name required"}, 400)
+                        return
+                    with _recordings_lock:
+                        if name in _saved_recordings:
+                            del _saved_recordings[name]
+                            _save_recordings(_saved_recordings)
+                            self._json_response({"status": "deleted", "name": name})
+                        else:
+                            self._json_response({"error": "not found"}, 404)
 
                 else:
                     self.send_error(404)
@@ -831,8 +987,9 @@ TWIN_HTML = r"""<!DOCTYPE html>
   #modePill.manual{background:#663300;color:#fa0;border:1px solid #fa0;animation:pulse-manual 1s infinite}
   @keyframes pulse-manual{0%,100%{opacity:1}50%{opacity:0.7}}
   #camFeed{position:absolute;bottom:10px;left:10px;width:260px;border:2px solid #333;
-           border-radius:6px;opacity:0.85;transition:width 0.3s,opacity 0.2s;z-index:5}
-  #camFeed:hover{opacity:1;width:380px}
+           border-radius:6px;opacity:0.85;transition:width 0.3s,opacity 0.2s;z-index:5;cursor:pointer}
+  #camFeed:hover{opacity:1}
+  #camFeed.enlarged{width:calc(100vw - 320px);max-width:800px;opacity:1;z-index:15;border-color:#0df}
   #legend{position:absolute;bottom:10px;left:280px;background:rgba(0,0,0,0.7);
           padding:8px 12px;border-radius:6px;font-size:11px;pointer-events:none;z-index:10}
   #legend span{margin-right:12px}
@@ -898,10 +1055,11 @@ TWIN_HTML = r"""<!DOCTYPE html>
   /* ── Virtual joystick (mobile) ───────────────── */
   .vj-zone{display:none;position:fixed;bottom:20px;z-index:30;touch-action:none}
   /* ── Color picker panel ─────────────────────── */
-  #colorPanel{position:absolute;top:50%;left:10px;transform:translateY(-50%);z-index:20;
-    display:flex;flex-direction:column;gap:8px;user-select:none}
-  #colorPanel .cp-label{color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1px;text-align:center}
-  .color-btn{width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,255,255,0.15);
+  #colorPanel{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:20;
+    display:flex;flex-direction:row;gap:10px;align-items:center;user-select:none;
+    background:rgba(0,0,0,0.6);padding:6px 14px;border-radius:20px;backdrop-filter:blur(4px)}
+  #colorPanel .cp-label{color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-right:4px}
+  .color-btn{width:36px;height:36px;border-radius:50%;border:3px solid rgba(255,255,255,0.15);
     cursor:pointer;transition:all 0.2s;position:relative;display:flex;align-items:center;justify-content:center}
   .color-btn:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.5)}
   .color-btn.active{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,0.6);transform:scale(1.1)}
@@ -1103,6 +1261,22 @@ TWIN_HTML = r"""<!DOCTYPE html>
       </table>
     </div>
   </div>
+  <div class="section">
+    <h4>Recording</h4>
+    <div class="action-row" style="margin-bottom:6px">
+      <button class="ctrl-btn" id="btnRecord" onclick="toggleRecord()" style="background:#222;border:1px solid #c44;color:#f66">&#9679; Record</button>
+    </div>
+    <div style="margin-bottom:6px">
+      <select id="recSelect" style="width:100%;background:#111;border:1px solid #444;color:#0df;padding:3px 4px;border-radius:3px;font-family:inherit;font-size:11px">
+        <option value="">-- Saved recordings --</option>
+      </select>
+    </div>
+    <div class="action-row">
+      <button class="ctrl-btn" onclick="playRecording()" style="background:#143;border:1px solid #4a8;color:#4f8">&#9654; Play</button>
+      <button class="ctrl-btn" onclick="deleteRecording()" style="background:#311;border:1px solid #844;color:#f88">&#10005; Del</button>
+    </div>
+    <div id="recStatus" style="font-size:10px;color:#888;margin-top:4px"></div>
+  </div>
 </div>
 <!-- Mobile toolbar -->
 <div id="mobileBar">
@@ -1125,7 +1299,7 @@ TWIN_HTML = r"""<!DOCTYPE html>
   <div class="vj-base" id="vjZBase"><div class="vj-knob" id="vjZKnob"></div></div>
   <div class="vj-label">Z</div>
 </div>
-<img id="camFeed" src="/stream" title="Live annotated feed">
+<img id="camFeed" src="/stream" title="Click to enlarge" onclick="this.classList.toggle('enlarged')">
 <div id="legend">
   <span class="cBlue">&#9632; Extruder</span>
   <span class="cRed">&#9632; Target</span>
@@ -1549,6 +1723,136 @@ function toggleInfo(){
   btn.innerHTML=el.classList.contains('open')?'&#9650; Controls Info':'&#9660; Controls Info';
 }
 window.toggleInfo=toggleInfo;
+
+// ── Recording ───────────────────────────────────────────────────────────
+let recActive=false;
+
+async function loadRecordings(){
+  try{
+    const r=await fetch('/api/records');
+    const d=await r.json();
+    const sel=$('recSelect');
+    sel.innerHTML='<option value="">-- Saved recordings --</option>';
+    if(d.recordings){
+      Object.keys(d.recordings).sort().forEach(name=>{
+        const opt=document.createElement('option');
+        opt.value=name;
+        opt.textContent=name+' ('+d.recordings[name].points+' pts)';
+        sel.appendChild(opt);
+      });
+    }
+    recActive=d.recording_active||false;
+    updateRecBtn();
+  }catch(e){}
+}
+
+function updateRecBtn(){
+  const btn=$('btnRecord');
+  if(recActive){
+    btn.innerHTML='&#9632; Stop';
+    btn.style.background='#411';
+    btn.style.borderColor='#f44';
+    btn.style.color='#f44';
+  }else{
+    btn.innerHTML='&#9679; Record';
+    btn.style.background='#222';
+    btn.style.borderColor='#c44';
+    btn.style.color='#f66';
+  }
+}
+
+async function toggleRecord(){
+  if(!recActive){
+    // Start recording
+    const r=await api('/api/record/start',{});
+    if(r&&r.status==='recording'){
+      recActive=true;
+      updateRecBtn();
+      $('recStatus').textContent='Recording...';
+      $('recStatus').style.color='#f44';
+      // Hide name input if visible
+      const ni=$('recNameRow');
+      if(ni) ni.style.display='none';
+    }
+  }else{
+    // Stop recording — show inline name input
+    recActive=false;
+    updateRecBtn();
+    $('recStatus').textContent='Enter name and press Save:';
+    $('recStatus').style.color='#ff0';
+    let ni=$('recNameRow');
+    if(!ni){
+      ni=document.createElement('div');
+      ni.id='recNameRow';
+      ni.style.cssText='display:flex;gap:4px;margin-top:4px';
+      ni.innerHTML='<input type="text" id="recNameInput" placeholder="Recording name" style="flex:1;background:#111;border:1px solid #4a8;color:#0df;padding:3px 4px;border-radius:3px;font-family:inherit;font-size:11px"><button class="ctrl-btn" onclick="saveRecording()" style="background:#143;border:1px solid #4a8;color:#4f8;font-size:10px">Save</button>';
+      $('recStatus').parentNode.insertBefore(ni,$('recStatus'));
+    }
+    ni.style.display='flex';
+    $('recNameInput').value='';
+    $('recNameInput').focus();
+    // Allow Enter key to save
+    $('recNameInput').onkeydown=function(e){if(e.key==='Enter'){saveRecording();e.stopPropagation();}};
+  }
+}
+window.toggleRecord=toggleRecord;
+
+async function saveRecording(){
+  const nameEl=$('recNameInput');
+  const name=nameEl?nameEl.value.trim():'';
+  if(!name){
+    $('recStatus').textContent='Please enter a name';
+    $('recStatus').style.color='#f88';
+    return;
+  }
+  const r=await api('/api/record/stop',{name:name});
+  if(r&&r.status==='saved'){
+    $('recStatus').textContent='Saved "'+name+'" ('+r.points+' pts)';
+    $('recStatus').style.color='#4f8';
+    const ni=$('recNameRow');
+    if(ni) ni.style.display='none';
+    loadRecordings();
+  }else{
+    $('recStatus').textContent='Error: '+(r?r.error:'unknown');
+    $('recStatus').style.color='#f88';
+  }
+}
+window.saveRecording=saveRecording;
+
+async function playRecording(){
+  const name=$('recSelect').value;
+  if(!name){$('recStatus').textContent='Select a recording first';$('recStatus').style.color='#ff0';return;}
+  $('recStatus').textContent='Replaying "'+name+'"...';
+  $('recStatus').style.color='#0df';
+  const r=await api('/api/record/play',{name:name});
+  if(r&&r.status==='replaying'){
+    $('recStatus').textContent='Playing "'+name+'" ('+r.points+' pts)';
+    $('recStatus').style.color='#4f8';
+  }else{
+    $('recStatus').textContent='Error: '+(r?r.error:'unknown');
+    $('recStatus').style.color='#f88';
+  }
+}
+window.playRecording=playRecording;
+
+async function deleteRecording(){
+  const name=$('recSelect').value;
+  if(!name){$('recStatus').textContent='Select a recording first';$('recStatus').style.color='#ff0';return;}
+  // No confirm() in embedded browsers — just delete directly
+  const r=await api('/api/record/delete',{name:name});
+  if(r&&r.status==='deleted'){
+    $('recStatus').textContent='Deleted "'+name+'"';
+    $('recStatus').style.color='#888';
+    loadRecordings();
+  }else{
+    $('recStatus').textContent='Error: '+(r?r.error:'unknown');
+    $('recStatus').style.color='#f88';
+  }
+}
+window.deleteRecording=deleteRecording;
+
+// Load recordings on page load
+loadRecordings();
 
 // Step size presets
 const STEPS=[0.1, 0.5, 1, 5, 10, 50];
@@ -2026,6 +2330,74 @@ def detect_red(frame: np.ndarray,
     )
 
 
+def _printer_mm_to_px(d_mm_x: float, d_mm_y: float,
+                      mapping: AxisMapping | None) -> tuple[float, float]:
+    """Convert a printer-coord delta (mm) to a camera-pixel delta.
+
+    Uses the inverse of the AxisMapping convention used in compute_movement.
+    Since cam_*_to_printer_* are ±1, the inverse equals the value.
+    """
+    sx = mapping.cam_right_to_printer_x if mapping else 1.0
+    sy = mapping.cam_down_to_printer_y if mapping else 1.0
+    return d_mm_x * _PX_PER_MM * sx, d_mm_y * _PX_PER_MM * sy
+
+
+def update_ghost_anchor(tracking: TrackingState, det: RedDetection,
+                        mapping: AxisMapping | None) -> None:
+    """Maintain the biggest-area-in-last-2s anchor and project it forward
+    by printer motion to predict the red object's position when lost.
+
+    Key insight: the camera is mounted on the extruder, so when the printer
+    moves, static objects shift in the OPPOSITE direction in the frame.
+    We negate the projection to account for this.
+
+    The ghost persists indefinitely while the target is lost — only the
+    sliding window (used to pick the biggest anchor) is time-limited.
+    """
+    now = time.time()
+    cutoff = now - _GHOST_WINDOW_SEC
+
+    # Push current detection (only if accepted/found) into history.
+    if det.found:
+        tracking.red_history.append(
+            (now, det.centroid_x, det.centroid_y, det.area,
+             tracking.printer_x, tracking.printer_y)
+        )
+
+    # Only prune old entries while we have fresh detections.
+    # If target is lost, freeze the history so the anchor persists.
+    if det.found:
+        tracking.red_history = [e for e in tracking.red_history if e[0] >= cutoff]
+
+    if not tracking.red_history:
+        tracking.ghost_cx = None
+        tracking.ghost_cy = None
+        tracking.ghost_area = 0.0
+        tracking.ghost_active = False
+        return
+
+    # Anchor = biggest-area entry inside the retained window.
+    t_a, cx_a, cy_a, area_a, px_a, py_a = max(tracking.red_history, key=lambda e: e[3])
+
+    # Project by printer motion since the anchor was captured.
+    # NEGATE: camera moves with printer, so static objects shift opposite.
+    d_mm_x = tracking.printer_x - px_a
+    d_mm_y = tracking.printer_y - py_a
+    d_px_x, d_px_y = _printer_mm_to_px(d_mm_x, d_mm_y, mapping)
+
+    tracking.ghost_cx = int(round(cx_a - d_px_x))
+    tracking.ghost_cy = int(round(cy_a - d_px_y))
+    tracking.ghost_area = area_a
+
+    # Active when the live detection is missing or notably smaller than anchor.
+    if not det.found:
+        tracking.ghost_active = True
+    elif det.area < 0.5 * area_a:
+        tracking.ghost_active = True
+    else:
+        tracking.ghost_active = False
+
+
 def detect_blue(frame: np.ndarray) -> BlueDetection:
     """Detect the extruder marker in a BGR frame. Uses configured extruder_color."""
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -2458,6 +2830,23 @@ def annotate_frame(frame: np.ndarray, det: RedDetection,
         cv2.putText(out, "NO RED DETECTED", (rx - 90, ry + 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
 
+    # ── 4b. Ghost anchor (biggest in last 2s, projected by printer motion) ──
+    if tracking.ghost_active and tracking.ghost_cx is not None and tracking.ghost_cy is not None:
+        gx, gy = tracking.ghost_cx, tracking.ghost_cy
+        # Approximate radius from anchor area (assume circular blob)
+        gr = max(10, int(math.sqrt(max(tracking.ghost_area, 1.0) / math.pi)))
+        GHOST_COLOR = (255, 0, 255)  # magenta
+        # Dashed circle: draw arcs at intervals for a "predicted" feel
+        for a in range(0, 360, 30):
+            cv2.ellipse(out, (gx, gy), (gr, gr), 0, a, a + 18, GHOST_COLOR, 2, cv2.LINE_AA)
+        cv2.drawMarker(out, (gx, gy), GHOST_COLOR, cv2.MARKER_TILTED_CROSS, 14, 2)
+        label = f"GHOST ({tracking.ghost_area:.0f}px^2)"
+        (tw2, th2), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+        lx2, ly2 = gx + gr + 4, gy - gr
+        cv2.rectangle(out, (lx2 - 2, ly2 - th2 - 3), (lx2 + tw2 + 2, ly2 + 3), (0, 0, 0), -1)
+        cv2.putText(out, label, (lx2, ly2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, GHOST_COLOR, 1, cv2.LINE_AA)
+
     # ── 6. Top HUD panel ───────────────────────────────────────────────
     _draw_hud_panel(out, tracking, det, markov_reason=markov_reason)
 
@@ -2644,7 +3033,12 @@ def run_visual_servo(
 
     # ── 1. Verify printer backend ──────────────────────────────────────
     logger.info("Checking printer backend...")
-    if not printer_health(printer_url):
+    for _attempt in range(15):
+        if printer_health(printer_url):
+            break
+        logger.info("  Backend not ready, retrying in 2s...")
+        time.sleep(2)
+    else:
         logger.error(f"Printer backend not reachable at {printer_url}")
         sys.exit(1)
 
@@ -2832,9 +3226,17 @@ def run_visual_servo(
                 ny = max(5.0, min(215.0, tracking.printer_y + cmd["y"]))
                 nz = max(0.0, min(250.0, tracking.printer_z + cmd["z"]))
                 logger.info(f"[manual] Jog dX={cmd['x']:+.1f} dY={cmd['y']:+.1f} dZ={cmd['z']:+.1f} -> ({nx:.1f}, {ny:.1f}, {nz:.1f})")
-                # For manual jog, send directly (blocking) since user expects immediate response
                 printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
                 tracking.printer_x, tracking.printer_y, tracking.printer_z = nx, ny, nz
+                record_position(nx, ny, nz)
+            elif cmd["type"] == "replay_abs":
+                nx = max(0.0, min(220.0, cmd["x"]))
+                ny = max(0.0, min(220.0, cmd["y"]))
+                nz = max(0.0, min(250.0, cmd["z"]))
+                logger.info(f"[replay] Move to ({nx:.1f}, {ny:.1f}, {nz:.1f})")
+                printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
+                tracking.printer_x, tracking.printer_y, tracking.printer_z = nx, ny, nz
+                record_position(nx, ny, nz)
 
         # If stopped, keep streaming but don't auto-move.
         # NOTE: M410 is sent ONCE by the /api/stop handler when entering
@@ -2852,6 +3254,7 @@ def run_visual_servo(
                     tracking.blue_px_x = blue_det.centroid_x
                     tracking.blue_px_y = blue_det.centroid_y
                 tracking.detections.append(det)
+                update_ghost_anchor(tracking, det, mapping)
                 annotated = annotate_frame(frame, det, tracking, mapping, blue=blue_det)
                 viz.update(annotated, frame)
             tracking.status_msg = "PAUSED -- manual control active"
@@ -2860,6 +3263,14 @@ def run_visual_servo(
 
         tracking.iteration += 1
         should_log = (tracking.iteration % LOG_EVERY_N == 0) or tracking.iteration <= 3
+
+        # Check if color was changed — drop all lock/belief
+        if tracking.color_changed:
+            tracking.color_changed = False
+            last_cx, last_cy = None, None
+            red_lost_count = 0
+            red_tracker.reset()
+            logger.info(f"[{tracking.iteration}] Color changed — belief reset, re-acquiring target")
 
         # Poll frame
         frame = fetch_frame(camera_url)
@@ -2905,6 +3316,13 @@ def run_visual_servo(
                 last_cx, last_cy = None, None
                 red_tracker.reset()
         tracking.detections.append(det)
+
+        # Update ghost anchor (biggest detection in last 2s, projected by
+        # printer motion). When real detection is missing/shrunk, use ghost
+        # as soft anchor for the next frame's lock search.
+        update_ghost_anchor(tracking, det, mapping)
+        if (not det.found) and tracking.ghost_active and tracking.ghost_cx is not None:
+            last_cx, last_cy = tracking.ghost_cx, tracking.ghost_cy
 
         # Annotate and push to visualization server
         annotated = annotate_frame(frame, det, tracking, mapping, blue=blue_det,
@@ -2998,6 +3416,7 @@ def run_visual_servo(
         tracking.printer_positions.append((new_x, new_y, z_height))
         tracking.printer_x = new_x
         tracking.printer_y = new_y
+        record_position(new_x, new_y, z_height)
         active_iters += 1
 
         # Update viz with movement arrow

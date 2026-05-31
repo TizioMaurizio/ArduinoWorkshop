@@ -109,6 +109,8 @@ def main():
     os.chdir(PROJECT_DIR)
     python = sys.executable
 
+    mock_mode = "--mock" in sys.argv[1:]
+
     job = create_job_object()
 
     print("=" * 60)
@@ -119,7 +121,7 @@ def main():
     # 1. Camera server
     print("[1/3] Starting camera server on port 8766...")
     cam = subprocess.Popen(
-        [python, "scripts/camera_server.py", "--camera", "auto", "--port", "8766"],
+        [python, "scripts/camera_server.py", "--camera", "0", "--port", "8766"],
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
     )
     children.append(cam)
@@ -128,9 +130,10 @@ def main():
     time.sleep(2)
 
     # 2. Printer backend
-    print("[2/3] Starting printer backend on port 8765...")
+    backend_flag = "--mock" if mock_mode else "--auto"
+    print(f"[2/3] Starting printer backend on port 8765 ({backend_flag})...")
     backend = subprocess.Popen(
-        [python, "-m", "backend.main", "--auto"],
+        [python, "-m", "backend.main", backend_flag],
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
     )
     children.append(backend)

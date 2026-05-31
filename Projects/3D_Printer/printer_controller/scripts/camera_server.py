@@ -93,25 +93,29 @@ def discover_cameras(max_index: int = 10) -> list[dict]:
     return results
 
 
-def auto_select_camera(max_index: int = 10) -> int:
+def auto_select_camera(max_index: int = 10, exclude: set[int] | None = None) -> int:
     """Auto-discover and return the index of the first working USB camera.
 
     Strategy:
       1. Probe indices 0..max_index-1
       2. Skip cameras that can't deliver frames (broken)
-      3. Skip virtual cameras (OBS, ManyCam) detected by DSHOW backend
-      4. Among real hardware cameras (MSMF), prefer higher indices — USB
+      3. Skip excluded indices (e.g. internal laptop camera)
+      4. Skip virtual cameras (OBS, ManyCam) detected by DSHOW backend
+      5. Among real hardware cameras (MSMF), prefer higher indices — USB
          cameras enumerate after built-in webcams on Windows
-      5. Fall back to any working camera if no real hardware found
+      6. Fall back to any working camera if no real hardware found
 
     Raises RuntimeError if no working camera is found.
     """
+    if exclude is None:
+        exclude = set()
     logger.info(f"Auto-discovering cameras (indices 0-{max_index - 1})...")
     cams = discover_cameras(max_index)
-    working = [c for c in cams if c["working"]]
+    working = [c for c in cams if c["working"] and c["index"] not in exclude]
     if not working:
         raise RuntimeError(
-            f"No working camera found (probed indices 0-{max_index - 1}). "
+            f"No working camera found (probed indices 0-{max_index - 1}, "
+            f"excluded={exclude}). "
             f"{len(cams)} camera(s) opened but none delivered frames."
         )
 
@@ -289,6 +293,10 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8766, help="HTTP port (default: 8766)")
     parser.add_argument("--width", type=int, default=640, help="Capture width")
     parser.add_argument("--height", type=int, default=480, help="Capture height")
+    parser.add_argument(
+        "--exclude", type=str, default="0",
+        help="Comma-separated camera indices to skip (default: 0 = internal laptop camera)",
+    )
     parser.add_argument("--list", action="store_true", help="List all cameras and exit")
     args = parser.parse_args()
 
@@ -306,7 +314,8 @@ def main() -> None:
         return
 
     if args.camera == "auto":
-        camera_index = auto_select_camera()
+        excluded = set(int(x) for x in args.exclude.split(",") if x.strip())
+        camera_index = auto_select_camera(exclude=excluded)
     else:
         camera_index = int(args.camera)
 
