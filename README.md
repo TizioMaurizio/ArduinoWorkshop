@@ -37,7 +37,7 @@ ArduinoWorkshop/
 ### 🤖 VR / Teleoperation / Featured Systems
 
 - [ESP32-CAM-PlatformIO](Projects/ESP32-CAM-PlatformIO/README.md) — VR robot-arm car teleoperated from a Quest 2 headset.
-- [3D_Printer / printer_controller](Projects/3D_Printer/printer_controller/README.md) — Vision-guided Marlin controller with browser digital twin.
+- [3D_Printer / printer_controller](Projects/3D_Printer/README.md) — Vision-guided Marlin controller with browser digital twin.
 - [CircuitDesigner](Projects/CircuitDesigner/README.md) — Browser visual circuit designer + Arduino simulator.
 - [RobotBiped](Projects/RobotBiped/README.md) — Bipedal walking robot platform.
 
