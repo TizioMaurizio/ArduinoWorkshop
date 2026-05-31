@@ -59,5 +59,9 @@ Projects/ESP32-CAM-PlatformIO/drone_control/
 # Copilot memory (local workspace state, not shared)
 memories/
 
+# Auto-generated servo state files
+.servo_settings.json
+.servo_recordings.json
+
 # Simulation and test scaffolding (generated)
 test/
