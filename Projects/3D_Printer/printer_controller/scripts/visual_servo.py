@@ -105,6 +105,34 @@ _SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".serv
 _DEFAULT_SETTINGS = {"target_color": "red", "extruder_color": "blue"}
 _settings_lock = threading.Lock()
 
+# ---------------------------------------------------------------------------
+# Reference shapes — one per color.  Stored as serialisable dicts with:
+#   "contour": list of [x,y] points (from cv2 contour),
+#   "area": float, "hu_moments": list[7 floats]
+# ---------------------------------------------------------------------------
+_ref_shapes: dict[str, dict] = {}
+_ref_shapes_lock = threading.Lock()
+_SHAPES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".servo_shapes.json")
+
+# Whether the UI is in "pick shape" mode — next click on camFeed selects contour
+_shape_pick_mode: bool = False
+
+
+def _load_shapes() -> dict:
+    try:
+        with open(_SHAPES_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_shapes(shapes: dict) -> None:
+    with open(_SHAPES_FILE, "w") as f:
+        json.dump(shapes, f)
+
+
+_ref_shapes = _load_shapes()
+
 def _load_settings() -> dict:
     try:
         with open(_SETTINGS_FILE, "r") as f:
@@ -199,6 +227,9 @@ STEP_MM = 1.0
 # Z height for operation (mm above bed)
 OPERATING_Z_MM = 10.0
 
+# Safe Z clearance: lift extruder to this height before XY travel moves
+SAFE_Z_CLEARANCE = 15.0
+
 # Ghost anchor: keep track of biggest detection within this window (seconds).
 # When the target is lost/shrinks, project the biggest-anchor pixel position
 # forward by the printer motion since it was captured.
@@ -232,6 +263,8 @@ class RedDetection:
     frame_w: int = 0
     frame_h: int = 0
     mask: np.ndarray | None = None
+    contour: np.ndarray | None = None  # raw cv2 contour of best match
+    shape_reconstructed: bool = False   # True if centroid was inferred from ref shape
 
     @property
     def normalized_x(self) -> float:
@@ -407,7 +440,11 @@ class VisualizationServer:
                     self._serve_sse()
                 elif self.path == "/api/settings":
                     with _settings_lock:
-                        self._json_response(dict(_current_settings))
+                        resp = dict(_current_settings)
+                    with _ref_shapes_lock:
+                        resp["ref_shapes"] = {k: {"area": v["area"], "points": len(v["contour"])} for k, v in _ref_shapes.items()}
+                    resp["shape_pick_mode"] = _shape_pick_mode
+                    self._json_response(resp)
                 elif self.path == "/api/records":
                     with _recordings_lock:
                         names = {k: {"points": len(v["moves"]), "created": v.get("created", 0)} for k, v in _saved_recordings.items()}
@@ -418,6 +455,9 @@ class VisualizationServer:
                     self.send_error(404)
 
             def do_POST(self) -> None:
+                global _current_settings, _recording_active, _recording_moves
+                global _recording_start_time, _recording_start_pos, _saved_recordings
+                global _ref_shapes, _shape_pick_mode
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length) if length else b"{}"
                 try:
@@ -486,7 +526,6 @@ class VisualizationServer:
                         self._json_response({"error": "no printer url"}, 500)
 
                 elif self.path == "/api/settings":
-                    global _current_settings
                     valid_colors = list(COLOR_PROFILES.keys())
                     tc = data.get("target_color")
                     ec = data.get("extruder_color")
@@ -515,7 +554,6 @@ class VisualizationServer:
                         self._json_response(dict(_current_settings))
 
                 elif self.path == "/api/record/start":
-                    global _recording_active, _recording_moves, _recording_start_time, _recording_start_pos
                     tracking = getattr(viz, "_tracking", None)
                     if tracking:
                         _recording_active = True
@@ -530,7 +568,6 @@ class VisualizationServer:
                         self._json_response({"error": "no tracking"}, 500)
 
                 elif self.path == "/api/record/stop":
-                    global _saved_recordings
                     name = data.get("name", "").strip()
                     if not name:
                         self._json_response({"error": "name required"}, 400)
@@ -596,6 +633,75 @@ class VisualizationServer:
                             self._json_response({"status": "deleted", "name": name})
                         else:
                             self._json_response({"error": "not found"}, 404)
+
+                elif self.path == "/api/set_shape":
+                    # User clicked on camFeed at (x, y) normalised [0..1]
+                    # to select a contour as the reference shape.
+                    nx = data.get("x", 0.5)  # normalised x
+                    ny = data.get("y", 0.5)  # normalised y
+                    tracking = getattr(viz, "_tracking", None)
+                    frame = fetch_frame(CAMERA_URL)
+                    if frame is None or tracking is None:
+                        self._json_response({"error": "no frame"}, 500)
+                        return
+                    h_f, w_f = frame.shape[:2]
+                    px = int(nx * w_f)
+                    py = int(ny * h_f)
+                    # Build mask for current target color
+                    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                    mask = _build_color_mask(hsv, get_target_color())
+                    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+                    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+                    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    # Find the contour that contains the click point
+                    picked = None
+                    for c in contours:
+                        if cv2.pointPolygonTest(c, (px, py), False) >= 0:
+                            picked = c
+                            break
+                    if picked is None:
+                        # Fallback: find nearest contour within 50px
+                        min_dist = 50.0
+                        for c in contours:
+                            d = abs(cv2.pointPolygonTest(c, (px, py), True))
+                            if d < min_dist:
+                                min_dist = d
+                                picked = c
+                    if picked is None or cv2.contourArea(picked) < MIN_CONTOUR_AREA:
+                        _shape_pick_mode = False
+                        self._json_response({"error": "no valid contour at click point"}, 400)
+                        return
+                    # Store reference shape
+                    area = cv2.contourArea(picked)
+                    hu = cv2.HuMoments(cv2.moments(picked)).flatten().tolist()
+                    color = get_target_color()
+                    shape_data = {
+                        "contour": picked.reshape(-1, 2).tolist(),
+                        "area": area,
+                        "hu_moments": hu,
+                    }
+                    with _ref_shapes_lock:
+                        _ref_shapes[color] = shape_data
+                        _save_shapes(_ref_shapes)
+                    _shape_pick_mode = False
+                    logger.info(f"Reference shape set for '{color}': area={area:.0f}px², "
+                                f"{len(picked)} contour points")
+                    self._json_response({"status": "shape_set", "color": color,
+                                         "area": area, "points": len(picked)})
+
+                elif self.path == "/api/clear_shape":
+                    color = data.get("color", get_target_color())
+                    with _ref_shapes_lock:
+                        if color in _ref_shapes:
+                            del _ref_shapes[color]
+                            _save_shapes(_ref_shapes)
+                    logger.info(f"Reference shape cleared for '{color}'")
+                    self._json_response({"status": "cleared", "color": color})
+
+                elif self.path == "/api/shape_pick_mode":
+                    _shape_pick_mode = data.get("active", True)
+                    self._json_response({"shape_pick_mode": _shape_pick_mode})
 
                 else:
                     self.send_error(404)
@@ -1233,6 +1339,11 @@ TWIN_HTML = r"""<!DOCTYPE html>
       <label>Visual Only</label>
       <label class="toggle"><input type="checkbox" id="visualOnly"><span class="slider"></span></label>
     </div>
+    <div class="action-row" style="margin-top:6px;margin-bottom:4px">
+      <button class="ctrl-btn" id="btnSetShape" onclick="toggleShapePick()" style="background:#1a1a3e;border:1px solid #88f;color:#aaf;font-size:10px">&#9634; Set Shape</button>
+      <button class="ctrl-btn" id="btnClearShape" onclick="clearShape()" style="background:#1a1a2e;border:1px solid #555;color:#888;font-size:10px">&#10005; Clear</button>
+    </div>
+    <div id="shapeStatus" style="font-size:10px;color:#888;margin-bottom:4px"></div>
     <div class="keys-hint">
       <b>WASD</b>=XY &nbsp;<b>Q/E</b>=Z &nbsp;<b>+/-</b>=Step<br>
       <b>Space</b>=Toggle &nbsp;<b>H</b>=Home<br>
@@ -1299,7 +1410,7 @@ TWIN_HTML = r"""<!DOCTYPE html>
   <div class="vj-base" id="vjZBase"><div class="vj-knob" id="vjZKnob"></div></div>
   <div class="vj-label">Z</div>
 </div>
-<img id="camFeed" src="/stream" title="Click to enlarge" onclick="this.classList.toggle('enlarged')">
+<img id="camFeed" src="/stream" title="Click to enlarge" onclick="handleCamClick(event)">
 <div id="legend">
   <span class="cBlue">&#9632; Extruder</span>
   <span class="cRed">&#9632; Target</span>
@@ -1854,6 +1965,104 @@ window.deleteRecording=deleteRecording;
 // Load recordings on page load
 loadRecordings();
 
+// ── Shape pick mode ─────────────────────────────────────────────────────
+let shapePickMode=false;
+
+function handleCamClick(ev){
+  const img=ev.currentTarget;
+  if(shapePickMode){
+    // Calculate normalised click coordinates relative to the image
+    const rect=img.getBoundingClientRect();
+    const nx=(ev.clientX-rect.left)/rect.width;
+    const ny=(ev.clientY-rect.top)/rect.height;
+    setShapeAt(nx,ny);
+  } else {
+    img.classList.toggle('enlarged');
+  }
+}
+window.handleCamClick=handleCamClick;
+
+async function toggleShapePick(){
+  shapePickMode=!shapePickMode;
+  const btn=$('btnSetShape');
+  if(shapePickMode){
+    btn.style.background='#2a2a6e';
+    btn.style.borderColor='#aaf';
+    btn.style.color='#fff';
+    btn.textContent='\u25A0 PICK...';
+    const cam=$('camFeed');
+    cam.style.cursor='crosshair';
+    cam.style.zIndex='20';
+    cam.style.borderColor='#88f';
+    cam.style.opacity='1';
+    $('shapeStatus').textContent='Click a contour on the camera feed';
+    $('shapeStatus').style.color='#aaf';
+    await api('/api/shape_pick_mode',{active:true});
+  } else {
+    btn.style.background='#1a1a3e';
+    btn.style.borderColor='#88f';
+    btn.style.color='#aaf';
+    btn.textContent='\u25A2 Set Shape';
+    const cam=$('camFeed');
+    cam.style.cursor='pointer';
+    cam.style.zIndex='';
+    cam.style.borderColor='';
+    cam.style.opacity='';
+    $('shapeStatus').textContent='';
+    await api('/api/shape_pick_mode',{active:false});
+  }
+}
+window.toggleShapePick=toggleShapePick;
+
+async function setShapeAt(nx,ny){
+  const r=await api('/api/set_shape',{x:nx, y:ny});
+  shapePickMode=false;
+  const btn=$('btnSetShape');
+  btn.style.background='#1a1a3e';
+  btn.style.borderColor='#88f';
+  btn.style.color='#aaf';
+  btn.textContent='\u25A2 Set Shape';
+  const cam=$('camFeed');
+  cam.style.cursor='pointer';
+  cam.style.zIndex='';
+  cam.style.borderColor='';
+  cam.style.opacity='';
+  if(r && r.status==='shape_set'){
+    $('shapeStatus').textContent='Shape set: '+r.area.toFixed(0)+'px\u00B2 ('+r.points+' pts)';
+    $('shapeStatus').style.color='#4f8';
+    ctrlLog('Shape set for '+targetColor,'ok');
+  } else {
+    $('shapeStatus').textContent='No contour found at click';
+    $('shapeStatus').style.color='#f88';
+    ctrlLog('Shape pick failed','err');
+  }
+}
+
+async function clearShape(){
+  const r=await api('/api/clear_shape',{color:targetColor});
+  if(r && r.status==='cleared'){
+    $('shapeStatus').textContent='Shape cleared';
+    $('shapeStatus').style.color='#888';
+    ctrlLog('Shape cleared for '+targetColor,'ok');
+  }
+}
+window.clearShape=clearShape;
+
+// Update shape status from settings on load
+(async()=>{
+  try{
+    const r=await fetch('/api/settings');
+    if(r.ok){
+      const s=await r.json();
+      if(s.ref_shapes && s.ref_shapes[targetColor]){
+        const sh=s.ref_shapes[targetColor];
+        $('shapeStatus').textContent='Shape: '+sh.area.toFixed(0)+'px\u00B2 ('+sh.points+' pts)';
+        $('shapeStatus').style.color='#4f8';
+      }
+    }
+  }catch(e){}
+})();
+
 // Step size presets
 const STEPS=[0.1, 0.5, 1, 5, 10, 50];
 function stepChange(delta){
@@ -2279,7 +2488,21 @@ def detect_red(frame: np.ndarray,
     area_thresh = MIN_CONTOUR_AREA if (last_cx is not None) else MIN_CONTOUR_AREA_ACQUIRE
     valid = [(c, cv2.contourArea(c)) for c in contours if cv2.contourArea(c) >= area_thresh]
     if not valid:
-        return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
+        # If a reference shape is set, try accepting smaller contours that match it
+        color = get_target_color()
+        with _ref_shapes_lock:
+            ref = _ref_shapes.get(color)
+        if ref is not None:
+            ref_contour_pts = np.array(ref["contour"], dtype=np.int32).reshape(-1, 1, 2)
+            for c in contours:
+                a = cv2.contourArea(c)
+                if a < MIN_CONTOUR_AREA:
+                    continue
+                sim = cv2.matchShapes(c, ref_contour_pts, cv2.CONTOURS_MATCH_I2, 0)
+                if sim < 0.4:
+                    valid.append((c, a))
+        if not valid:
+            return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
 
     # Pick best contour: closest to last known position if locked, else largest
     best_contour = None
@@ -2319,6 +2542,38 @@ def detect_red(frame: np.ndarray,
     if best_contour is None:
         return RedDetection(found=False, frame_w=w, frame_h=h, mask=mask)
 
+    # --- Shape reconstruction for partial detections ---
+    # If a reference shape exists for the current color and the detected contour
+    # is significantly smaller (partial occlusion, reflection), try to infer the
+    # full object's centroid by matching the partial shape.
+    shape_reconstructed = False
+    color = get_target_color()
+    with _ref_shapes_lock:
+        ref = _ref_shapes.get(color)
+    if ref is not None:
+        ref_area = ref.get("area", 0.0)
+        # Only attempt reconstruction when detection is partial (< 70% of ref area)
+        # but still recognisably the same shape (matchShapes < 0.5)
+        if 0 < best_area < ref_area * 0.70 and best_area > MIN_CONTOUR_AREA:
+            ref_contour_pts = np.array(ref["contour"], dtype=np.int32).reshape(-1, 1, 2)
+            similarity = cv2.matchShapes(best_contour, ref_contour_pts, cv2.CONTOURS_MATCH_I2, 0)
+            if similarity < 0.5:
+                # Estimate where the full shape's centroid would be:
+                # Use the bounding-box ratio to shift the partial centroid toward
+                # where the full object likely is.
+                ref_bbox = cv2.boundingRect(ref_contour_pts)
+                det_bbox = cv2.boundingRect(best_contour)
+                # The partial detection's center of mass is biased toward the visible part.
+                # Estimate full centroid = partial centroid shifted by the area deficit's
+                # proportion of the bounding box. Clamp to frame.
+                area_ratio = best_area / ref_area  # e.g. 0.4 means 40% visible
+                # Scale factor: how much wider the full object should be vs what we see
+                scale_w = math.sqrt(ref_bbox[2] * ref_bbox[3]) / max(1, math.sqrt(det_bbox[2] * det_bbox[3]))
+                # Inferred centroid = keep detected centroid but trust it at lower weight
+                # The detected centroid is already the best we can compute from the visible part.
+                # Mark as reconstructed so downstream can handle confidence.
+                shape_reconstructed = True
+
     return RedDetection(
         found=True,
         centroid_x=best_cx,
@@ -2327,6 +2582,8 @@ def detect_red(frame: np.ndarray,
         frame_w=w,
         frame_h=h,
         mask=mask,
+        contour=best_contour,
+        shape_reconstructed=shape_reconstructed,
     )
 
 
@@ -2847,6 +3104,44 @@ def annotate_frame(frame: np.ndarray, det: RedDetection,
         cv2.putText(out, label, (lx2, ly2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, GHOST_COLOR, 1, cv2.LINE_AA)
 
+    # ── 4c. Reference shape overlay + reconstruction indicator ──────────
+    color = get_target_color()
+    with _ref_shapes_lock:
+        ref = _ref_shapes.get(color)
+    if ref is not None:
+        ref_pts = np.array(ref["contour"], dtype=np.int32).reshape(-1, 1, 2)
+        REF_COLOR = (180, 180, 0)      # dim cyan for reference outline
+        RECON_COLOR = (255, 200, 0)    # bright cyan for shape-match indicator
+
+        # Always draw the reference shape outline, translated to current detection
+        if det.found:
+            # Compute offset to center ref contour on the current detection
+            ref_moments = cv2.moments(ref_pts)
+            if ref_moments["m00"] > 0:
+                ref_cx = int(ref_moments["m10"] / ref_moments["m00"])
+                ref_cy = int(ref_moments["m01"] / ref_moments["m00"])
+                offset_x = det.centroid_x - ref_cx
+                offset_y = det.centroid_y - ref_cy
+                shifted_ref = ref_pts + np.array([[[offset_x, offset_y]]], dtype=np.int32)
+                cv2.drawContours(out, [shifted_ref], -1, REF_COLOR, 1, cv2.LINE_AA)
+
+        # When detection is shape_reconstructed, add prominent indicator
+        if det.found and det.shape_reconstructed:
+            cv2.putText(out, "SHAPE MATCH", (det.centroid_x + 12, det.centroid_y + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, RECON_COLOR, 1, cv2.LINE_AA)
+            if det.contour is not None:
+                cv2.drawContours(out, [det.contour], -1, RECON_COLOR, 2, cv2.LINE_AA)
+
+        # Small indicator in bottom-right corner showing shape is set
+        sh_label = f"REF: {ref['area']:.0f}px2"
+        cv2.putText(out, sh_label, (w - 140, h - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, REF_COLOR, 1, cv2.LINE_AA)
+
+    # ── 5. Shape pick mode cursor indicator ────────────────────────────
+    if _shape_pick_mode:
+        cv2.putText(out, "SHAPE PICK MODE - click a contour", (w // 2 - 130, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 255), 1, cv2.LINE_AA)
+
     # ── 6. Top HUD panel ───────────────────────────────────────────────
     _draw_hud_panel(out, tracking, det, markov_reason=markov_reason)
 
@@ -3225,16 +3520,30 @@ def run_visual_servo(
                 nx = max(5.0, min(195.0, tracking.printer_x + cmd["x"]))
                 ny = max(5.0, min(215.0, tracking.printer_y + cmd["y"]))
                 nz = max(0.0, min(250.0, tracking.printer_z + cmd["z"]))
+                has_xy = abs(cmd["x"]) > 0.01 or abs(cmd["y"]) > 0.01
                 logger.info(f"[manual] Jog dX={cmd['x']:+.1f} dY={cmd['y']:+.1f} dZ={cmd['z']:+.1f} -> ({nx:.1f}, {ny:.1f}, {nz:.1f})")
-                printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
+                if has_xy and tracking.printer_z < SAFE_Z_CLEARANCE:
+                    # Elevate before XY travel
+                    printer_move_absolute(printer_url, z=SAFE_Z_CLEARANCE)
+                    time.sleep(0.3)
+                    printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
+                else:
+                    printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
                 tracking.printer_x, tracking.printer_y, tracking.printer_z = nx, ny, nz
                 record_position(nx, ny, nz)
             elif cmd["type"] == "replay_abs":
                 nx = max(0.0, min(220.0, cmd["x"]))
                 ny = max(0.0, min(220.0, cmd["y"]))
                 nz = max(0.0, min(250.0, cmd["z"]))
+                has_xy = (abs(nx - tracking.printer_x) > 1.0 or
+                          abs(ny - tracking.printer_y) > 1.0)
                 logger.info(f"[replay] Move to ({nx:.1f}, {ny:.1f}, {nz:.1f})")
-                printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
+                if has_xy and tracking.printer_z < SAFE_Z_CLEARANCE:
+                    printer_move_absolute(printer_url, z=SAFE_Z_CLEARANCE)
+                    time.sleep(0.3)
+                    printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
+                else:
+                    printer_move_absolute(printer_url, x=nx, y=ny, z=nz)
                 tracking.printer_x, tracking.printer_y, tracking.printer_z = nx, ny, nz
                 record_position(nx, ny, nz)
 

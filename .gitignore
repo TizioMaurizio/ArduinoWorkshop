@@ -62,6 +62,7 @@ memories/
 # Auto-generated servo state files
 .servo_settings.json
 .servo_recordings.json
+.servo_shapes.json
 
 # Simulation and test scaffolding (generated)
 test/
